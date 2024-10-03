@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { images } from '../constants'; // Assuming images is an object containing image paths
@@ -44,27 +44,27 @@ export default function HomeScreen() {
           </View>
 
           {/* Card Images Section */}
-          <View className="flex-row justify-center items-center mt-12 space-x-0">
+          <View className="flex-row justify-center items-center mt-3 space-x-0">
             {/* Left Card */}
-            <View style={{ transform: [{ rotate: '-5deg' }] }}>
+            <View style={{ transform: [{ rotate: '-10deg' }] }}>
               <Image
                 source={images.aiImage} // Replace with your image source
                 className="w-40 h-64 rounded-2xl"
                 style={{
                   borderRadius: 20,
-                  marginRight: -20, // Overlap the two images
+                  marginRight: -15, // Overlap the two images
                 }}
                 resizeMode="cover"
               />
             </View>
             {/* Right Card */}
-            <View style={{ transform: [{ rotate: '5deg' }] }}>
+            <View style={{ transform: [{ rotate: '10deg' }] }}>
               <Image
                 source={images.welcomeAi} // Replace with your image source
                 className="w-40 h-64 rounded-2xl"
                 style={{
                   borderRadius: 20,
-                  marginLeft: -20, // Overlap the two images
+                  marginLeft: -15, // Overlap the two images
                 }}
                 resizeMode="cover"
               />
@@ -72,13 +72,15 @@ export default function HomeScreen() {
           </View>
 
           {/* Buttons Section */}
-          <View className="space-y-4 mt-10 mb-10">
+          <View className="space-y-4 mb-12">
             <TouchableOpacity className="bg-cyan-500 py-4 rounded-full items-center">
-              <Text className="text-white text-lg font-semibold">Get Started</Text>
+              <Text className="text-white text-lg font-semibold">Continue with Email</Text>
             </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
+      <StatusBar backgroundColor='#161622'
+      style='light'/>
     </SafeAreaView>
   );
 }
