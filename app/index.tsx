@@ -2,7 +2,9 @@ import React from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Redirect, router } from 'expo-router';
 import { images } from '../constants'; // Assuming images is an object containing image paths
+import CustomButton from '@/components/CustomButton';
 
 export default function HomeScreen() {
   return (
@@ -73,9 +75,11 @@ export default function HomeScreen() {
 
           {/* Buttons Section */}
           <View className="space-y-4 mb-12">
-            <TouchableOpacity className="bg-cyan-500 py-4 rounded-full items-center">
-              <Text className="text-white text-lg font-semibold">Continue with Email</Text>
-            </TouchableOpacity>
+            <CustomButton
+              title = "Continue with Email"
+              handlePress = {() => router.push('/signIn')}
+              containerStyles="w-full mt-7"
+              />
           </View>
         </View>
       </ScrollView>
