@@ -12,7 +12,7 @@ const Home = () => {
         <Text className="text-md text-gray-300 text-center mb-8">
           Get support and guidance anytime, anywhere.
         </Text>
-        <Link href="./convo" asChild>
+        <Link href="./conversation" asChild>
           <TouchableOpacity className="bg-indigo-600 py-3 px-6 rounded-full shadow-md active:bg-indigo-700">
             <Text className="text-lg font-semibold text-white text-center">
               Start Chatting

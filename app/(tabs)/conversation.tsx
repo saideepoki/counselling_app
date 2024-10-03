@@ -1,14 +1,15 @@
 import { View, Text, TouchableOpacity } from 'react-native'
 import React, { useState } from 'react'
 import AudioRecorder from '../../components/AudioRecorder';
+import {playChatbotResponse, sendAudioToBackend} from '../../lib/backend';
 
-const Convo = () => {
+const Conversation = () => {
     const [responseText, setResponseText] = useState('');
 
     const handleAudioSend = async (audioFile: string) => {
-    //   const response = await sendAudioToBackend(audioFile);
-    //   setResponseText(response.text);  // Display chatbot response
-    //   playChatbotResponse(response.audioUrl);  // Play the audio response
+      // const response = await sendAudioToBackend(audioFile);
+      // setResponseText(response.text);  // Display chatbot response
+      // playChatbotResponse("vh");  // Play the audio response
     console.log("TODO");
     };
   
@@ -22,7 +23,7 @@ const Convo = () => {
             Start the conversation by sending a voice message.
           </Text>
           
-          <AudioRecorder onAudioSend={handleAudioSend} />
+          {/* <AudioRecorder onAudioSend={handleAudioSend} /> */}
           
           {responseText && (
             <View className="bg-gray-800 p-4 rounded-lg mt-4">
@@ -41,4 +42,4 @@ const Convo = () => {
     );
 }
 
-export default Convo;
+export default Conversation;
