@@ -1,37 +1,105 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { View, Text, Image } from 'react-native';
+import {icons} from '../../constants';
 
-import { TabBarIcon } from '@/components/navigation/TabBarIcon';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
 
+const TabIcon = ({icon, color, name, focused} : {icon : any, color: any, name: any, focused: boolean}) => {
+  return (
+    <View className='items-center justify-center gap-2'>
+      <Image
+      source= {icon}
+      resizeMode='contain'
+      tintColor={color}
+      className='w-6 h-6'
+      />
+      <Text className={`${focused ? 'font-psemibold' : 'font-pregular'} text-xs text-white`}>
+        {name}
+      </Text>
+    </View>
+  )
+}
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
 
   return (
+    <>
     <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-      }}>
+    screenOptions={{
+      tabBarShowLabel: false,
+      tabBarStyle: {
+        bottom: 2,
+        backgroundColor: '#001d3d',
+        borderTopColor: '#000814',
+        borderTopWidth: 1,
+        height: 79
+      },
+    }}
+    >
       <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'code-slash' : 'code-slash-outline'} color={color} />
-          ),
-        }}
-      />
+      name = "home"
+      options = {
+        {
+          title: "Home",
+          headerShown: false,
+          tabBarIcon: ({color, focused}) => (
+            <TabIcon
+            icon = {icons.home}
+            color = {color}
+            name = "Home"
+            focused = {focused}
+            />
+          )
+        }
+      }/>
+       <Tabs.Screen
+      name = "conversation"
+      options = {
+        {
+          title: "Chat",
+          headerShown: false,
+          tabBarIcon: ({color, focused}) => (
+            <TabIcon
+            icon = {icons.play}
+            color = {color}
+            name = "Chat"
+            focused = {focused}
+            />
+          )
+        }
+      }/>
+       <Tabs.Screen
+      name = "history"
+      options = {
+        {
+          title: "History",
+          headerShown: false,
+          tabBarIcon: ({color, focused}) => (
+            <TabIcon
+            icon = {icons.rightArrow}
+            color = {color}
+            name = "History"
+            focused = {focused}
+            />
+          )
+        }
+      }/>
+       <Tabs.Screen
+      name = "report"
+      options = {
+        {
+          title: "Report",
+          headerShown: false,
+          tabBarIcon: ({color, focused}) => (
+            <TabIcon
+            icon = {icons.eye}
+            color = {color}
+            name = "Report"
+            focused = {focused}
+            />
+          )
+        }
+      }/>
     </Tabs>
+   </>
   );
 }
