@@ -5,16 +5,21 @@ import { StatusBar } from 'expo-status-bar';
 import { Redirect, router } from 'expo-router';
 import { images } from '../constants'; // Assuming images is an object containing image paths
 import CustomButton from '@/components/CustomButton';
+import { useGlobalContext } from '@/context/GlobalProvider';
 
 export default function HomeScreen() {
+
+  const {isLoading, isLoggedIn} = useGlobalContext();
+
+  if(!isLoading && isLoggedIn) return <Redirect href = "/home"/>
   return (
     <SafeAreaView className="bg-zinc-900 flex-1">
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="flex-1 justify-between px-6 py-5">
+        <View className="flex-1 justify-between px-6 py-5 min-h-[85vh]">
           {/* Logo and Text Section */}
           <View className="items-center">
-            <Image
+            {/* <Image
               source={images.logo}
               className="w-48 h-48 rounded-full bg-transparent"
               style={{
@@ -23,12 +28,12 @@ export default function HomeScreen() {
                 backgroundColor: 'transparent',
               }}
               resizeMode="contain"
-            />
+            /> */}
             <View className="relative mt-1">
             <Text className="text-3xl font-extrabold mt-8 text-center text-white">
               Welcome to {''}
               <Text className = "text-cyan-500">
-              Znoforia AI
+              Zoforia AI
             </Text>
             </Text>
             <Image
@@ -46,7 +51,7 @@ export default function HomeScreen() {
           </View>
 
           {/* Card Images Section */}
-          <View className="flex-row justify-center items-center mt-3 space-x-0">
+          <View className="flex-row justify-center items-center mt-1 space-x-0">
             {/* Left Card */}
             <View style={{ transform: [{ rotate: '-10deg' }] }}>
               <Image
@@ -74,7 +79,7 @@ export default function HomeScreen() {
           </View>
 
           {/* Buttons Section */}
-          <View className="space-y-4 mb-12">
+          <View className="space-y-4 mb-20">
             <CustomButton
               title = "Continue with Email"
               handlePress = {() => router.push('/signIn')}
