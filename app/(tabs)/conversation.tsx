@@ -6,8 +6,14 @@ import MicrophoneButton from '../../components/MicrophoneButton';
 import { Recording } from 'expo-av/build/Audio';
 import { createAudio } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-const audioRecorderPlayer = new AudioRecorderPlayer();
+interface MicButtonProps {
+  isRecording: boolean;
+  onPress: () => void;
+}
+
+
 
 const Conversation: React.FC = () => {
   const [recording, setRecording] = useState<Recording | null>();
@@ -18,6 +24,7 @@ const Conversation: React.FC = () => {
   });
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   // const [transcription, setTranscription] = useState<string | null>(null);
   // const [llmResponse, setLlmResponse] = useState<string | null>(null);
 
@@ -41,6 +48,7 @@ const Conversation: React.FC = () => {
   }
 
   const startRecording = async () => {
+    setIsRecording(true);
     try {
       if (permissionResponse?.status !== 'granted') {
         console.log('Requesting permission..');
@@ -83,6 +91,7 @@ const Conversation: React.FC = () => {
       ...prevForm,
       audio: recording ?? null
     }))
+    setIsRecording(false);
     console.log('Recording stopped and stored at', uri);
     await submit({audio: fileData});
     console.log('Audio uploaded to appwrite');
@@ -132,11 +141,10 @@ const Conversation: React.FC = () => {
   }, [sound]);
 
   return (
-    <View className="flex-1 justify-center bg-cyan-500 p-10">
-      <Button
-        title={recording ? 'Stop Recording' : 'Start Recording'}
-        onPress={recording ? stopRecording : startRecording}
-      />
+    <View className="flex-1 justify-center bg-zinc-900 p-10">
+      {/* Use the MicrophoneButton for starting and stopping recording */}
+      <MicrophoneButton isRecording={isRecording} onPress={isRecording ? stopRecording : startRecording} />
+
       {audioUri && (
         <Button title="Play Sound" onPress={playSound} />
       )}
