@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+pydantic-settings
+groq
+edge_tts
+mega.py
+pydub
+soundfile
+tenacity
