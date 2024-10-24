@@ -1,22 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Button, Alert } from 'react-native';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { Audio } from 'expo-av';
 import MicrophoneButton from '../../components/MicrophoneButton';
-import { Recording } from 'expo-av/build/Audio';
+import { AndroidAudioEncoder, AndroidOutputFormat, IOSAudioQuality, IOSOutputFormat, Recording } from 'expo-av/build/Audio';
 import { createAudio } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-interface MicButtonProps {
-  isRecording: boolean;
-  onPress: () => void;
+
+const configs = {
+  isMeteringEnabled: true,
+  android: {
+    extension: '.m4a',
+    outputFormat: AndroidOutputFormat.MPEG_4,
+    audioEncoder: AndroidAudioEncoder.AAC,
+    sampleRate: 1000000,
+    numberOfChannels: 2,
+    bitRate: 128000,
+  },
+  ios: {
+    extension: '.m4a',
+    outputFormat: IOSOutputFormat.MPEG4AAC,
+    audioQuality: IOSAudioQuality.MAX,
+    sampleRate: 1000000,
+    numberOfChannels: 2,
+    bitRate: 128000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: {
+    mimeType: 'audio/webm',
+    bitsPerSecond: 128000,
+  },
 }
 
-
-
 const Conversation: React.FC = () => {
-  const [recording, setRecording] = useState<Recording | null>();
+  const [recording, setRecording] = useState<Audio.Recording | null>();
   const [permissionResponse, requestPermission] = Audio.usePermissions();
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
@@ -57,12 +76,17 @@ const Conversation: React.FC = () => {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: true
+
       });
 
       console.log('Starting recording..');
-      const { recording } = await Audio.Recording.createAsync( Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(recording);
+      const newRecording = new Audio.Recording();
+      await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY = configs);
+      await newRecording.startAsync();
+      setRecording(newRecording);
       setForm((prevForm) => ({
         ...prevForm,
         audio: recording
@@ -78,6 +102,9 @@ const Conversation: React.FC = () => {
     await recording?.stopAndUnloadAsync();
     const uri = recording?.getURI();
     setAudioUri(String(uri));
+
+    const fileName = `recording-${Date.now()}.m4a`;
+    // Move the recording to the new directory with the new file name
     const fileInfo = await FileSystem.getInfoAsync(String(uri));
     console.log(fileInfo);
     const fileData = {
@@ -122,12 +149,18 @@ const Conversation: React.FC = () => {
     console.log('Loading sound from URI:', audioUri);
     const { sound } = await Audio.Sound.createAsync(
       { uri: audioUri },
-      { shouldPlay: true }
+      { shouldPlay: true,
+        volume: 1.0,
+        rate: 1.0,
+        shouldCorrectPitch: true,  // Add pitch correction
+        pitchCorrectionQuality: Audio.PitchCorrectionQuality.High,
+      }
     );
     setSound(sound);
 
     console.log('Playing sound');
-    await sound.playAsync();
+    await sound.playAsync(
+    );
   };
 
   // Cleanup sound on component unmount
