@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Button, Alert } from 'react-native';
+import { View, Button, Alert } from 'react-native';
 import { Audio } from 'expo-av';
 import MicrophoneButton from '../../components/MicrophoneButton';
 import { AndroidAudioEncoder, AndroidOutputFormat, IOSAudioQuality, IOSOutputFormat, Recording } from 'expo-av/build/Audio';
 import { createAudio } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
+import { sendAudioToBackend } from '@/lib/backend';
+import { PlayCircle } from "lucide-react";
 
 
 const configs = {
@@ -44,8 +46,8 @@ const Conversation: React.FC = () => {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  // const [transcription, setTranscription] = useState<string | null>(null);
-  // const [llmResponse, setLlmResponse] = useState<string | null>(null);
+  const [transcription, setTranscription] = useState<string | null>(null);
+  const [llmResponse, setLlmResponse] = useState<string | null>(null);
 
 
 
@@ -57,7 +59,11 @@ const Conversation: React.FC = () => {
     setUploading(true);
 
     try {
-      await createAudio(form);
+      const fileUrl = await createAudio(form);
+      console.log(fileUrl);
+      const result: any = sendAudioToBackend(String(fileUrl));
+      setLlmResponse(result.llm_response);
+      setTranscription(result.transcription);
     } catch (error : unknown) {
       throw new Error(String(error));
     }
@@ -105,7 +111,7 @@ const Conversation: React.FC = () => {
 
     const fileName = `recording-${Date.now()}.m4a`;
     // Move the recording to the new directory with the new file name
-    const fileInfo = await FileSystem.getInfoAsync(String(uri));
+    const fileInfo : any = await FileSystem.getInfoAsync(String(uri));
     console.log(fileInfo);
     const fileData = {
       uri: uri,

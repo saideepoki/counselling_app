@@ -136,12 +136,12 @@ export const processAudio = async (fileId: string) => {
 
             console.log("File created", uploadedFile);
 
-            const fileUrl = await storage.getFile(
+            const fileUrl = await storage.getFileView(
                 config.storageId,
                 uploadedFile.$id
             )
 
-            console.log(fileUrl);
+            return fileUrl;
         } catch (error : unknown) {
             throw new Error(String(error));
         }
