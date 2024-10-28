@@ -5,7 +5,7 @@ import MicrophoneButton from '../../components/MicrophoneButton';
 import { AndroidAudioEncoder, AndroidOutputFormat, IOSAudioQuality, IOSOutputFormat, Recording } from 'expo-av/build/Audio';
 import { createAudio } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
-import { sendAudioToBackend } from '@/lib/backend';
+import { fetchAudio, sendAudioToBackend } from '@/lib/backend';
 import { PlayCircle } from "lucide-react";
 
 
@@ -15,7 +15,7 @@ const configs = {
     extension: '.m4a',
     outputFormat: AndroidOutputFormat.MPEG_4,
     audioEncoder: AndroidAudioEncoder.AAC,
-    sampleRate: 1000000,
+    sampleRate: 44000,
     numberOfChannels: 2,
     bitRate: 128000,
   },
@@ -23,7 +23,7 @@ const configs = {
     extension: '.m4a',
     outputFormat: IOSOutputFormat.MPEG4AAC,
     audioQuality: IOSAudioQuality.MAX,
-    sampleRate: 1000000,
+    sampleRate: 44000,
     numberOfChannels: 2,
     bitRate: 128000,
     linearPCMBitDepth: 16,
@@ -48,6 +48,7 @@ const Conversation: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
   const [llmResponse, setLlmResponse] = useState<string | null>(null);
+  const [llmFileURL, setLlmFileURL] = useState<string | null>(null);
 
 
 
@@ -61,9 +62,13 @@ const Conversation: React.FC = () => {
     try {
       const fileUrl = await createAudio(form);
       console.log(fileUrl);
-      const result: any = sendAudioToBackend(String(fileUrl));
+      const result: any = await sendAudioToBackend(String(fileUrl));
+      console.log("Sent audio to backend");
       setLlmResponse(result.llm_response);
       setTranscription(result.transcription);
+      const url = result.audio_url;
+      const fetchedUrl = await fetchAudio(url);
+      setLlmFileURL(fetchedUrl ?? '');
     } catch (error : unknown) {
       throw new Error(String(error));
     }
@@ -115,7 +120,7 @@ const Conversation: React.FC = () => {
     console.log(fileInfo);
     const fileData = {
       uri: uri,
-      name: fileInfo.uri.split('/').pop(), // Extract the file name
+      name: fileName, // Extract the file name
       type: 'audio/m4a',
       size: fileInfo?.size,
     };
@@ -129,32 +134,13 @@ const Conversation: React.FC = () => {
     await submit({audio: fileData});
     console.log('Audio uploaded to appwrite');
   }
-
-  // const onStopRecord = async () => {
-  //   const result : any = await audioRecorderPlayer.stopRecorder();
-  //   audioRecorderPlayer.removeRecordBackListener();
-  //   setIsRecording(false);
-  //   uploadToAppwrite(result);
-  //   setTranscription(result.transcription);
-  //   setLlmResponse(result.llm_response);
-  // };
-
-
-  // const handleMicPress = () => {
-  //   if (isRecording) {
-  //     onStopRecord();
-  //   } else {
-  //     onStartRecord();
-  //   }
-  // };
-
   // Function to play the recorded sound
   const playSound = async () => {
-    if (!audioUri) return;
+    if (!llmFileURL) return;
 
-    console.log('Loading sound from URI:', audioUri);
+    console.log('Loading sound from URI:', llmFileURL);
     const { sound } = await Audio.Sound.createAsync(
-      { uri: audioUri },
+      { uri: llmFileURL },
       { shouldPlay: true,
         volume: 1.0,
         rate: 1.0,
@@ -181,7 +167,6 @@ const Conversation: React.FC = () => {
 
   return (
     <View className="flex-1 justify-center bg-zinc-900 p-10">
-      {/* Use the MicrophoneButton for starting and stopping recording */}
       <MicrophoneButton isRecording={isRecording} onPress={isRecording ? stopRecording : startRecording} />
 
       {audioUri && (
