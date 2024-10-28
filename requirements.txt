@@ -4,7 +4,6 @@ python-multipart
 pydantic-settings
 groq
 edge_tts
-mega.py
 pydub
 soundfile
-tenacity
+appwrite==4.1.0

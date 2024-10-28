@@ -11,11 +11,17 @@ import edge_tts
 from mega import Mega
 import uvicorn
 from urllib.parse import quote
+from appwrite.client import Client
+from appwrite.services.storage import Storage
+from appwrite.input_file import InputFile
+from appwrite.id import ID
 
 class Settings(BaseSettings):
     GROQ_API_KEY: str
-    MEGA_EMAIL: str
-    MEGA_PASSWORD: str
+    APPWRITE_ENDPOINT: str
+    APPWRITE_PROJECT_ID: str
+    APPWRITE_API_KEY: str
+    APPWRITE_BUCKET_ID: str
     ALLOWED_ORIGINS: list = ["*"]
 
     class Config:
@@ -30,23 +36,46 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+#Initialize Groq client
 client = Groq(api_key=settings.GROQ_API_KEY)
-mega = Mega()
-m = mega.login(settings.MEGA_EMAIL, settings.MEGA_PASSWORD)
+
+# Initialize Appwrite client
+appwrite_client = Client()
+appwrite_client.set_endpoint(settings.APPWRITE_ENDPOINT)
+appwrite_client.set_project(settings.APPWRITE_PROJECT_ID)
+appwrite_client.set_key(settings.APPWRITE_API_KEY)
+
+storage = Storage(appwrite_client)
 
 async def text_to_speech(text: str, output_file: str):
     communicate = edge_tts.Communicate(text, "en-AU-NatashaNeural")
     await communicate.save(output_file)
 
-def upload_to_mega(file_path: str):
-    file = m.upload(file_path)
-    return m.get_upload_link(file)
+def upload_to_appwrite(file_path: str):
+    try:
+        # file_name = os.path.basename(file_path)
+        result = storage.create_file(
+            bucket_id=settings.APPWRITE_BUCKET_ID,
+            file_id=ID.unique(),
+            file=InputFile.from_path(file_path)
+        )
+
+
+        #URL for the uploaded file
+        file_url = f"{settings.APPWRITE_ENDPOINT}/storage/buckets/{settings.APPWRITE_BUCKET_ID}/files/{result['$id']}/view?project={settings.APPWRITE_PROJECT_ID}&mode=admin"
+
+        logger.info(file_url)
+        return file_url
+
+    except Exception as e:
+        logger.error(f"Error uploading to Appwrite: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to upload file to Appwrite")
 
 def download_file_from_url(url: str, save_path: str):
     try:
@@ -65,7 +94,7 @@ def download_file_from_url(url: str, save_path: str):
         raise HTTPException(status_code=500, detail="An error occurred while downloading the file")
 
 
-@app.post("/process_audio/")
+@app.get("/process_audio/")
 async def process_audio(url: str = Query(..., description="URL of the audio file to be processed")):
     try:
         # Download the audio file from the provided URL
@@ -84,11 +113,11 @@ async def process_audio(url: str = Query(..., description="URL of the audio file
             model="llama-3.1-8b-instant",
             messages=[
                 {
-                    "role": "user",
+                    "role": "assistant",
                     "content": transcription.text
                 }
             ],
-            temperature=1,
+            temperature=0.2,
             max_tokens=1024,
             top_p=1,
             stream=False,
@@ -101,7 +130,7 @@ async def process_audio(url: str = Query(..., description="URL of the audio file
         await text_to_speech(llm_response, tts_output_file)
         logger.info("Text-to-speech conversion completed")
 
-        mega_url = upload_to_mega(tts_output_file)
+        appwrite_url = upload_to_appwrite(tts_output_file)
         logger.info("Audio file uploaded to MEGA")
 
         os.remove(file_path)
@@ -111,7 +140,7 @@ async def process_audio(url: str = Query(..., description="URL of the audio file
         return JSONResponse(content={
             "transcription": transcription.text,
             "llm_response": llm_response,
-            "audio_url": mega_url
+            "audio_url": appwrite_url
         })
 
     except Exception as e:
