@@ -13,13 +13,15 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "package": "com.ai.znoforiaAi"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.ai.znoforiaAi"
     },
     "web": {
       "bundler": "metro",

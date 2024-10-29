@@ -16,35 +16,24 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
     npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+## Workflow and Key Features
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 1. **Recording the User’s Input**
+- The user initiates the conversation by pressing the microphone button in the app.
+- Once the recording is completed, the encrypted audio file is stored in the **Appwrite Storage Bucket**.
+- The URL of the stored audio file is also saved in the `audioFiles` collection in the database.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### 2. **Processing the Audio**
+- After the audio is stored, the **audio URL** is sent to our backend **API**.
+- The API fetches the audio file using the provided URL and passes it to **Distil-Whisper** to transcribe the audio into text.
 
-## Get a fresh project
+### 3. **Generating a Response**
+- The transcribed text is then sent to the **LLaMA-3.1**, which processes the user’s input and generates a response.
 
-When you're ready, run:
+### 4. **Converting the Response to Audio**
+- The generated text response is passed to **Edge-TTS** to convert it back into speech format.
+- The resulting audio file is stored in **Mega Storage**, and its URL is generated.
 
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### 5. **Delivering the Audio Response**
+- The generated **audio URL** is then sent back to the frontend of the app.
+- The app retrieves the audio and plays it for the user, completing the conversational loop.
