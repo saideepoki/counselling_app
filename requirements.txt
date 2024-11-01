@@ -7,3 +7,6 @@ edge_tts
 pydub
 soundfile
 appwrite==4.1.0
+langchain
+langchain-community
+langchain-groq
