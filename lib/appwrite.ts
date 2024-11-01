@@ -1,6 +1,7 @@
 import { Account, Avatars, Client, Databases, ID, Query, Storage} from 'react-native-appwrite';
 import 'react-native-url-polyfill/auto'
 import axios from 'axios';
+import Conversation from '@/app/(tabs)/conversation';
 
 export const config = {
     endpoint: "https://cloud.appwrite.io/v1",
@@ -48,7 +49,7 @@ export const createUser = async (username : string, email : string, password : s
             config.userCollectionId,
             ID.unique(),
             {
-                accountId: newAccount.$id,
+                userId: newAccount.$id,
                 email: email,
                 username: username,
                 avatar: avatarUrl
@@ -80,7 +81,7 @@ export const getCurrentUser = async () => {
         const currentUser = await database.listDocuments(
             config.databaseId,
             config.userCollectionId,
-            [Query.equal('accountId', currentAccount.$id)]
+            [Query.equal('userId', currentAccount.$id)]
         )
 
         if(!currentUser) throw Error;
@@ -88,6 +89,46 @@ export const getCurrentUser = async () => {
         return currentUser.documents[0]
     } catch (error) {
         console.error(error)
+    }
+}
+
+export const getCurrentUserId = async () => {
+    try {
+        const currentAccount = await account.get();
+
+        if(!currentAccount) throw Error;
+
+        const currentUser = await database.listDocuments(
+            config.databaseId,
+            config.userCollectionId,
+            [Query.equal('userId', currentAccount.$id)]
+        )
+
+        if(!currentUser) throw Error;
+
+        return currentUser.documents[0].$id
+    } catch (error) {
+        
+    }
+}
+
+export const createConversation  = async () => {
+    const userId = await getCurrentUserId();
+    try {
+        const newConversation = await database.createDocument(
+            config.databaseId,
+            config.conversationsCollectionId,
+            ID.unique(),
+            {
+                userId: userId,
+                conversationId: ID.unique()
+            }
+        )
+
+        console.log(newConversation);
+        return newConversation.$id;
+    } catch (error) {
+        console.error(String(error))
     }
 }
 

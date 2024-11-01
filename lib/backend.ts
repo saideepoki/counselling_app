@@ -1,13 +1,22 @@
 import axios from 'axios';
 import * as FileSystem from 'expo-file-system';
-import 'blob-polyfill';
+// import 'blob-polyfill';
+import { createConversation, getCurrentUserId } from './appwrite';
 
 
 export const sendAudioToBackend = async (fileUrl : string) => {
 
-  const apiUrl = `http://10.79.113.18:8000/process_audio/?url=${fileUrl}`;
+  const apiUrl = `http://10.79.113.18:8000/process_audio/`;
+  const userId = await getCurrentUserId();
+  const convoId = await createConversation();
+  const params = {
+    url: fileUrl,
+    user_id: userId,
+    convo_document_id: convoId
+  }
+
   try {
-    const result = await axios.get(apiUrl);
+    const result = await axios.get(apiUrl,params);
     console.log("Audio fetched from backend");
     return result.data;
   } catch (error) {
