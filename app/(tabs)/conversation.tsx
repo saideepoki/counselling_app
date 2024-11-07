@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Button, Alert } from 'react-native';
+import { View, Button, Alert, FlatList, TouchableOpacity, Text, Pressable } from 'react-native';
 import { Audio } from 'expo-av';
 import MicrophoneButton from '../../components/MicrophoneButton';
 import { AndroidAudioEncoder, AndroidOutputFormat, IOSAudioQuality, IOSOutputFormat, Recording } from 'expo-av/build/Audio';
-import { createAudio } from '@/lib/appwrite';
+import { createAudio, createConversation } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
 import { fetchAudio, sendAudioToBackend } from '@/lib/backend';
-import { PlayCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, PlusCircle, Search, MessageSquare, AppWindow} from "lucide-react-native";
 
 
 const configs = {
@@ -49,6 +49,13 @@ const Conversation: React.FC = () => {
   const [transcription, setTranscription] = useState<string | null>(null);
   const [llmResponse, setLlmResponse] = useState<string | null>(null);
   const [llmFileURL, setLlmFileURL] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<any[]>([
+    { id: '1', title: 'Conversation 1', timestamp: '2m ago' },
+    { id: '2', title: 'Conversation 2', timestamp: '1h ago' },
+   ]
+  );
+  const [activeConversation, setActiveConversation] = useState<any>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
 
 
@@ -74,6 +81,21 @@ const Conversation: React.FC = () => {
     }
     finally{
       setUploading(false);
+    }
+  }
+
+  const createNewConversation = async() => {
+    try {
+      const conversationId = await createConversation();
+      console.log(conversationId);
+      const newConversation = {
+        id: conversationId,
+        title: `Conversation ${conversations.length + 1}`,
+      }
+      setConversations([newConversation, ...conversations]);
+      setActiveConversation(newConversation);
+    } catch(err) {
+
     }
   }
 
@@ -155,6 +177,23 @@ const Conversation: React.FC = () => {
     );
   };
 
+  const ConversationItem = ({item, isActive} : {item : any, isActive : boolean}) => (
+      <TouchableOpacity
+      onPress = {() => setActiveConversation(item)}
+      className={`p-4 mx-2 mb-2 rounded-lg transition-all ${
+        isActive ? 'bg-cyan-600/80 hover:bg-cyan-600' : 'bg-zinc-800 hover:bg-zinc-700'
+      }`}
+      >
+        <View className='flex-row items-center space-x-3'>
+          <MessageSquare size={20} color={isActive ? 'white' : '#94a3b8'} />
+          <View>
+            <Text className="text-white font-medium">{item.title}</Text>
+            <Text className="text-zinc-400 text-sm">{item.timestamp}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+  )
+
   // Cleanup sound on component unmount
   useEffect(() => {
     return sound
@@ -166,12 +205,67 @@ const Conversation: React.FC = () => {
   }, [sound]);
 
   return (
-    <View className="flex-1 justify-center bg-zinc-900 p-10">
-      <MicrophoneButton isRecording={isRecording} onPress={isRecording ? stopRecording : startRecording} />
-
-      {audioUri && (
-        <Button title="Play Sound" onPress={playSound} />
+    <View className="flex-1 flex-row bg-zinc-900">
+      {/* SideBar */}
+      <View
+      className={`${
+        isSidebarOpen ? 'w-72' : 'w-0'
+      } border-r border-zinc-800 transition-all duration-300 overflow-hidden`}
+      >
+        <View className="p-4 border-b border-zinc-800">
+          <Text className="text-xl font-semibold text-white mb-4">Conversations</Text>
+          <Pressable
+            onPress={() => createNewConversation()}
+            className="flex-row items-center justify-center space-x-2 bg-gradient-to-r from-cyan-500 to-cyan-600 p-2 rounded-lg hover:from-cyan-600 hover:to-cyan-700 active:from-cyan-700 active:to-cyan-800"
+          >
+            <PlusCircle size={20} color="white" />
+            <Text className="text-white font-medium">New Chat</Text>
+          </Pressable>
+        </View>
+      <FlatList
+      data = {conversations}
+      keyExtractor={(item) => item.id}
+      renderItem = {({item}) => (
+        <ConversationItem item={item} isActive={activeConversation?.id === item.id} />
       )}
+      className='py-2'
+      />
+      </View>
+
+      {/* Main Chat Area */}
+      <View className = 'flex-1 relative'>
+        {/* Toolbar */}
+        <View className = 'absolute top-0 left-0 right-0 p-4 bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-800 flex-row justify-between items-center'>
+          <View className = 'flex-row items-center space-x-4'>
+            <Pressable
+            onPress={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 hover:bg-zinc-800 rounded-lg"
+            >
+              <AppWindow color='white'/>
+
+            </Pressable>
+            <Text className="text-lg font-semibold text-white">
+              {activeConversation?.title || 'New Conversation'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Chat History */}
+        <View className = 'flex-1 items-center justify-center pt-16'>
+        <MicrophoneButton 
+          isRecording={isRecording} 
+          onPress={isRecording ? stopRecording : startRecording} 
+        />
+        {audioUri && (
+          <Pressable
+            onPress = {playSound}
+            className = 'mt-4 px-6 py-3 bg-indigo-600 rounded-lg'
+          >
+            <Text className = 'text-white font-medium'>Play Sound</Text>
+          </Pressable>
+        )}
+        </View>
+      </View>
     </View>
   );
 };

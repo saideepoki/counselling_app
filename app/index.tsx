@@ -11,7 +11,7 @@ export default function HomeScreen() {
 
   const {isLoading, isLoggedIn} = useGlobalContext();
 
-  if(!isLoading && isLoggedIn) return <Redirect href = "/home"/>
+  if(!isLoading && isLoggedIn) return <Redirect href = "/conversation"/>
   return (
     <SafeAreaView className="bg-zinc-900 flex-1">
       <StatusBar style="light" />
