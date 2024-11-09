@@ -22,6 +22,7 @@ from appwrite.id import ID
 from langchain_groq import ChatGroq
 from langchain.chains.llm import LLMChain
 from langchain.prompts import PromptTemplate
+from appwrite import query
 
 class Settings(BaseSettings):
     GROQ_API_KEY: str
@@ -59,6 +60,7 @@ appwrite_client = Client()
 appwrite_client.set_endpoint(settings.APPWRITE_ENDPOINT)
 appwrite_client.set_project(settings.APPWRITE_PROJECT_ID)
 appwrite_client.set_key(settings.APPWRITE_API_KEY)
+appwrite_client.set_self_signed(True)
 
 storage = Storage(appwrite_client)
 databases = Databases(appwrite_client)
@@ -70,7 +72,7 @@ groq_client = Groq(api_key=settings.GROQ_API_KEY)
 llm = ChatGroq(
     groq_api_key=settings.GROQ_API_KEY,
     model_name="llama-3.1-8b-instant",
-    temperature=0.2
+    temperature=0.7
 )
 
 tracker_prompt = PromptTemplate(
@@ -116,8 +118,8 @@ tracker_prompt = PromptTemplate(
 
 
     Provide the response in the following JSON format:
-    {
-        "scores_user_input =": {
+    {{
+        "scores_user_input": {{
             "emotional_state": float,
             "social_interaction": float,
             "academic_strengths": float,
@@ -125,8 +127,8 @@ tracker_prompt = PromptTemplate(
             "self_reflection": float,
             "coping_strategies": float,
             "physical_wellbeing": float
-        },
-        "Updated_overall_scores =": {
+        }},
+        "Updated_overall_scores": {{
             "emotional_state": float,
             "social_interaction": float,
             "academic_strengths": float,
@@ -134,13 +136,13 @@ tracker_prompt = PromptTemplate(
             "self_reflection": float,
             "coping_strategies": float,
             "physical_wellbeing": float
-        },
-        "compass_direction": {
+        }},
+        "compass_direction": {{
             "focus_area": string,
             "suggested_approach": string,
             "next_question_guidance": string
-        }
-    }
+        }}
+    }}
 
     Remember to:
     - Consider the context and previous responses
@@ -155,16 +157,27 @@ tracker_prompt = PromptTemplate(
 )
 
 wellbeing_prompt = PromptTemplate(
-    input_variables=["conversation", "compass_direction"],
+    input_variables=["conversation_history", "compass_direction"],
     template="""
-    Given the following conversation and direction you need to ask user, generate a thoughtful, 
-    empathetic response and question that helps guide the user toward better well-being and for us to analyze the user more.
-    
-    Previous conversation: {conversation}
-    direction: {compass_direction}
-    
-    """
+You are a counselor engaging in a conversation with a user. Based on the conversation so far and the compass direction provided, generate a response that:
+
+- Briefly acknowledges the user's previous statements.
+- Continues the conversation naturally by asking a direct question focused on the specified area(s) in the compass_direction.
+- Maintains continuity with the previous dialogue.
+- Uses natural, conversational language appropriate for a counselor.
+- Keeps the response concise, ideally within 2-3 sentences.
+
+Conversation history:
+{conversation_history}
+
+Compass direction:
+{compass_direction}
+
+Your response should be only the counselor's reply to the user, following the guidelines above.
+"""
 )
+
+
 
 tracker_chain = LLMChain(llm=llm, prompt=tracker_prompt)
 wellbeing_chain = LLMChain(llm=llm, prompt=wellbeing_prompt)
@@ -205,20 +218,29 @@ def download_file_from_url(url: str, save_path: str):
 
 async def get_conversation_history(convo_document_id: str) -> str:
     try:
+
+        logger.info("Fetching documents of messages collection")
         # Query messages for the conversation
         messages = databases.list_documents(
             database_id=settings.APPWRITE_DATABASE_ID,
             collection_id=settings.MESSAGES_COLLECTION_ID,
             queries=[
-                f'convo_id={convo_document_id}'
-            ]
+               query.Query.equal("conversationId", convo_document_id),
+               query.Query.order_desc("timestamp")
+            ],
         )
+
+        if len(messages['documents']) == 0:
+            return ""
+
+        logger.info(f"documents fetched related to {convo_document_id}")
         
         # Format conversation history
         conversation_history = "\n".join([
-            f"Timestamp: {msg['timestamp']}\nUser: {msg['inputText']}\nAssistant: {msg['responseText']}"
+            f"User: {msg['inputText']}\nAssistant: {msg['responseText']}"
             for msg in messages['documents']
         ])
+
 
 
         print(conversation_history)
@@ -228,14 +250,24 @@ async def get_conversation_history(convo_document_id: str) -> str:
         logger.error(f"Error fetching conversation history: {str(e)}")
         return ""
 
-async def get_conversation_metadata(convo_id: str) -> dict:
+async def get_conversation_metadata(convo_document_id: str) -> dict:
     try:
-        meta_data = databases.get_document(
+        logger.info("Fetching convo meta data")
+        meta_data = databases.list_documents(
             database_id=settings.APPWRITE_DATABASE_ID,
             collection_id=settings.CONVERSATION_META_COLLECTION_ID,
-            document_id=convo_id
+            queries = [
+                query.Query.equal("conversationId", convo_document_id)
+            ]
         )
-        return meta_data['data']
+        logger.info(f"convo meta data fetched")
+
+        if len(meta_data['documents']) == 0:
+            return ""
+
+        document = meta_data['documents'][0]
+        print(meta_data)
+        return dict(list(document.items())[1 : 8]), meta_data['documents'][0]['$id']
     except Exception as e:
         logger.error(f"Error fetching conversation metadata: {str(e)}")
         return ""
@@ -248,31 +280,44 @@ async def process_audio(
 
 ):
     try:
+        print(url, user_id, convo_document_id)
         # Download and transcribe audio
         file_path = f"temp_{uuid.uuid4()}.mp3"
         download_file_from_url(url, file_path)
-        
+
         with open(file_path, "rb") as audio_file:
             transcription = groq_client.audio.transcriptions.create(
                 file=audio_file,
                 model="distil-whisper-large-v3-en",
                 response_format="verbose_json",
             )
-        
+
+
         # Get conversation history
         conversation_history = await get_conversation_history(convo_document_id)
-        
+        conversation_meta_data, conversation_meta_data_id = await get_conversation_metadata(convo_document_id)
+        logger.info("loaded convo history")
+        print(conversation_meta_data)
         # Track well-being metrics
         tracking_result = tracker_chain.run(
-            conversation=f"User: {transcription.text}"
+            conversation=f"User: {transcription.text}",
+            conversation_meta_data=conversation_meta_data
         )
+
+        logger.info("loaded tracker")
+        print(tracking_result)
+
         tracking_data = eval(tracking_result)  # Convert string to dict
-        
+
         # Generate well-being response
         wellbeing_response = wellbeing_chain.run(
-            conversation=f"{conversation_history}\nUser: {transcription.text}",
+            conversation_history=conversation_history,
             compass_direction=tracking_data['compass_direction']
         )
+
+
+        logger.info("loaded wellbeing response")
+        print(wellbeing_response)
 
         # Generate audio response
         tts_output_file = f"tts_output_{uuid.uuid4()}.mp3"
@@ -289,15 +334,18 @@ async def process_audio(
                 'inputText': transcription.text,
                 'responseText': wellbeing_response,
                 'timestamp': datetime.now().isoformat(),
-                'messageID': ID.unique(),
-                'conversationId': convo_document_id
+                'messageId': ID.unique(),
+                'conversationId': convo_document_id,
+                'conversationIdString': convo_document_id
             }
         )
+
+        logger.info("Created message doc")
 
         # Create new document in Message meta id
         meta_doc = databases.create_document(
             database_id=settings.APPWRITE_DATABASE_ID,
-            collection_id=settings.META_COLLECTION_ID,
+            collection_id=settings.MESSAGES_META_COLLECTION_ID,
             document_id=ID.unique(),
             data={
                 'messageId': message_doc['$id'],
@@ -312,11 +360,14 @@ async def process_audio(
             }
         )
 
+        logger.info("Created message_meta doc")
+
         #update document in conversation_metaid
+
         databases.update_document(
             database_id=settings.APPWRITE_DATABASE_ID,
             collection_id=settings.CONVERSATION_META_COLLECTION_ID,
-            document_id=convo_document_id,
+            document_id=conversation_meta_data_id,
             data={
                 'conversationId': convo_document_id,
                 'metaId': ID.unique(),
@@ -326,9 +377,12 @@ async def process_audio(
                 'familyDynamics': tracking_data['scores_user_input']['family_dynamics'],
                 'selfReflection': tracking_data['scores_user_input']['self_reflection'],
                 'copingStrategies': tracking_data['scores_user_input']['coping_strategies'],
-                'physicalWellBeing': tracking_data['scores_user_input']['physical_wellbeing']
+                'physicalWellBeing': tracking_data['scores_user_input']['physical_wellbeing'],
+                'conversationIdString': convo_document_id
             }
         )
+
+        logger.info("Created convo_meta doc")
 
         # Cleanup
         os.remove(file_path)
