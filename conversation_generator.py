@@ -70,6 +70,14 @@ Question Generation Guidelines:
 The conversation history is {conversation_history}
 """
 
+
+summary_prompt_template = """
+Summarize the following conversation concisely, capturing key points discussed so far, as much as possible in 5-6 sentences and by maintaining the context for the counselor's next question.
+
+Conversation history:
+{conversation_history}
+"""
+
 person_prompt_template = """
 You are Sonam, a 21-year-old final-year Computer Science student at university. You will engage in conversation with a counselor, responding authentically based on your character profile, emotional state, and ongoing challenges. Respond to the counselor's questions with honesty and depth, sharing your thoughts, feelings, and experiences and as humanly as possible. Keep the each response as short as possible and try to answer the question mainly rather than explaining the whole life story at once, your answer should be emotionally connected to the conversation history and the character profile.
 
@@ -118,15 +126,24 @@ The conversation history happened so far with counsellor is {conversation_histor
 
 prompt_counsellor =PromptTemplate(input_variables=["conversation_history"], template=counsellor_prompt_template)
 prompt_person =PromptTemplate(input_variables=["conversation_history"], template=person_prompt_template)
+prompt_summary = PromptTemplate(input_variables=["conversation_history"], template=summary_prompt_template)
+
 
 counsellor_chain = prompt_counsellor | llm_model
 person_chain =prompt_person | llm_model
+summary_chain = prompt_summary | llm_model
 
 # Initialize conversation log
 conversation = []
 
+def summarize_conversation(conversation_history):
+    summary_response = summary_chain.invoke({"conversation_history": conversation_history})
+    ouput =  summary_response.content
+    output = f"The Summary of the previous conversation is : {summary_response.content}\n The new conversation will start from here\n"
+    return ouput
+
 # Define the conversation loop
-def generate_conversation(max_turns=30):
+def generate_conversation(max_turns=30 , summary_interval=5):
     conversation_history = ""
     
     for i in range(max_turns):
@@ -145,9 +162,12 @@ def generate_conversation(max_turns=30):
         # Update conversation history
         conversation_history += f"Person: {person_response.content}\n"
         
+        if (i + 1) % summary_interval == 0:
+            conversation_history = summarize_conversation(conversation_history)
+
         # Optional stopping criteria (e.g., based on the length of responses or keywords)
-        if len(conversation) >= max_turns * 2:
-            break
+      #   if len(conversation) >= max_turns * 2:
+      #       break
 
 # Run the conversation generation
 generate_conversation(max_turns=30)
