@@ -1,15 +1,14 @@
 import os
+import json
 import uuid
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
 
 import requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic_settings import BaseSettings
-from pydantic import BaseModel
 from groq import Groq
 import edge_tts
 import uvicorn
@@ -22,6 +21,8 @@ from appwrite.id import ID
 from langchain_groq import ChatGroq
 from langchain.chains.llm import LLMChain
 from langchain.prompts import PromptTemplate
+from langchain.memory import ConversationSummaryBufferMemory
+from langchain.schema import AIMessage, HumanMessage
 from appwrite import query
 
 class Settings(BaseSettings):
@@ -157,7 +158,7 @@ tracker_prompt = PromptTemplate(
 )
 
 wellbeing_prompt = PromptTemplate(
-    input_variables=["conversation_history", "compass_direction"],
+    input_variables=["compass_direction"],
     template="""
 You are a counselor engaging in a conversation with a user. Based on the conversation so far and the compass direction provided, generate a response that:
 
@@ -168,19 +169,20 @@ You are a counselor engaging in a conversation with a user. Based on the convers
 - Keeps the response concise, ideally within 2-3 sentences.
 
 Conversation history:
-{conversation_history}
+{history}
 
 Compass direction:
 {compass_direction}
 
-Your response should be only the counselor's reply to the user, following the guidelines above.
+Your response should be only the counselor's reply to the user.
 """
 )
 
 
 
+memory = ConversationSummaryBufferMemory(llm=llm, max_token_limit=8000)
 tracker_chain = LLMChain(llm=llm, prompt=tracker_prompt)
-wellbeing_chain = LLMChain(llm=llm, prompt=wellbeing_prompt)
+wellbeing_chain = LLMChain(llm=llm, prompt=wellbeing_prompt, memory = memory)
 
 # Helper functions
 async def text_to_speech(text: str, output_file: str):
@@ -226,26 +228,25 @@ async def get_conversation_history(convo_document_id: str) -> str:
             collection_id=settings.MESSAGES_COLLECTION_ID,
             queries=[
                query.Query.equal("conversationId", convo_document_id),
-               query.Query.order_desc("timestamp")
+               query.Query.order_asc("timestamp")
             ],
         )
 
         if len(messages['documents']) == 0:
-            return ""
+            return []
 
         logger.info(f"documents fetched related to {convo_document_id}")
-        
-        # Format conversation history
-        conversation_history = "\n".join([
-            f"User: {msg['inputText']}\nAssistant: {msg['responseText']}"
-            for msg in messages['documents']
-        ])
 
+        conversation_messages = []
 
+        for msg in messages['documents']:
+            user_message = HumanMessage(content = msg['inputText'])
+            assistant_message = AIMessage(content = msg['responseText'])
+            conversation_messages.extend([user_message, assistant_message])
 
-        print(conversation_history)
-        
-        return conversation_history
+        print(conversation_messages)
+
+        return conversation_messages
     except Exception as e:
         logger.error(f"Error fetching conversation history: {str(e)}")
         return ""
@@ -263,14 +264,14 @@ async def get_conversation_metadata(convo_document_id: str) -> dict:
         logger.info(f"convo meta data fetched")
 
         if len(meta_data['documents']) == 0:
-            return ""
+            return {}, None
 
         document = meta_data['documents'][0]
         print(meta_data)
         return dict(list(document.items())[1 : 8]), meta_data['documents'][0]['$id']
     except Exception as e:
         logger.error(f"Error fetching conversation metadata: {str(e)}")
-        return ""
+        return {}, None
 
 @app.get("/process_audio/")
 async def process_audio(
@@ -292,32 +293,45 @@ async def process_audio(
                 response_format="verbose_json",
             )
 
+        latest_user_input = transcription.text
 
         # Get conversation history
         conversation_history = await get_conversation_history(convo_document_id)
-        conversation_meta_data, conversation_meta_data_id = await get_conversation_metadata(convo_document_id)
         logger.info("loaded convo history")
+        memory.chat_memory.messages = conversation_history
+        memory.chat_memory.add_user_message(latest_user_input)
+        conversation_meta_data, conversation_meta_data_id = await get_conversation_metadata(convo_document_id)
+        logger.info("loaded convo meta data")
         print(conversation_meta_data)
+
         # Track well-being metrics
         tracking_result = tracker_chain.run(
-            conversation=f"User: {transcription.text}",
+            conversation=f"User: {latest_user_input}",
             conversation_meta_data=conversation_meta_data
         )
 
         logger.info("loaded tracker")
         print(tracking_result)
 
-        tracking_data = eval(tracking_result)  # Convert string to dict
+        # Convert string to dict safely
+        tracking_data = json.loads(tracking_result)
+
+        # Convert compass_direction to a string
+        compass_direction_str = f"Focus area: {tracking_data['compass_direction']['focus_area']}\n" \
+                                f"Suggested approach: {tracking_data['compass_direction']['suggested_approach']}\n" \
+                                f"Next question guidance: {tracking_data['compass_direction']['next_question_guidance']}"
+
 
         # Generate well-being response
         wellbeing_response = wellbeing_chain.run(
-            conversation_history=conversation_history,
-            compass_direction=tracking_data['compass_direction']
+            compass_direction=compass_direction_str
         )
 
 
         logger.info("loaded wellbeing response")
         print(wellbeing_response)
+
+        memory.chat_memory.add_ai_message(wellbeing_response)
 
         # Generate audio response
         tts_output_file = f"tts_output_{uuid.uuid4()}.mp3"
@@ -364,7 +378,27 @@ async def process_audio(
 
         #update document in conversation_metaid
 
-        databases.update_document(
+        if conversation_meta_data_id is None:
+            databases.create_document(
+                database_id=settings.APPWRITE_DATABASE_ID,
+                collection_id=settings.CONVERSATION_META_COLLECTION_ID,
+                document_id=ID.unique(),
+                data={
+                    'conversationId': convo_document_id,
+                    'metaId': ID.unique(),
+                    'emotionalState': tracking_data['scores_user_input']['emotional_state'],
+                    'socialInteractions': tracking_data['scores_user_input']['social_interaction'],
+                    'academicStrengths': tracking_data['scores_user_input']['academic_strengths'],
+                    'familyDynamics': tracking_data['scores_user_input']['family_dynamics'],
+                    'selfReflection': tracking_data['scores_user_input']['self_reflection'],
+                    'copingStrategies': tracking_data['scores_user_input']['coping_strategies'],
+                    'physicalWellBeing': tracking_data['scores_user_input']['physical_wellbeing'],
+                    'conversationIdString': convo_document_id
+                }
+            )
+
+        else:
+            databases.update_document(
             database_id=settings.APPWRITE_DATABASE_ID,
             collection_id=settings.CONVERSATION_META_COLLECTION_ID,
             document_id=conversation_meta_data_id,
