@@ -1,15 +1,9 @@
-import getpass
 import os
 import json
 os.environ["MISTRAL_API_KEY"] ="rfIETaDGYQhjffNj4AFgMxIL2KmK5j4Q"
 os.environ["GROQ_API_KEY"] = "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"
 
-from langchain.agents import initialize_agent, AgentExecutor
-from langchain_mistralai import ChatMistralAI
-from langchain.tools import Tool
-
-from langchain.chains import LLMChain
-from langchain_core.prompts import PromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 
 llm_model = ChatGroq(
