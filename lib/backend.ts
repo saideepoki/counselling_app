@@ -1,22 +1,14 @@
 import axios from 'axios';
 import * as FileSystem from 'expo-file-system';
-// import 'blob-polyfill';
-import { createConversation, getCurrentUserId } from './appwrite';
+import { getCurrentUserId } from './appwrite';
 
 
-export const sendAudioToBackend = async (fileUrl : string) => {
-
-  const apiUrl = `http://10.79.113.18:8000/process_audio/`;
+export const sendAudioToBackend = async (fileUrl : string, conversationDocumentId : string) => {
   const userId = await getCurrentUserId();
-  const convoId = await createConversation();
-  const params = {
-    url: fileUrl,
-    user_id: userId,
-    convo_document_id: convoId
-  }
+  const apiUrl = `http://10.79.113.27:8000/process_audio/?url=${fileUrl}&user_id=${userId}&convo_document_id=${conversationDocumentId}`;
 
   try {
-    const result = await axios.get(apiUrl,params);
+    const result = await axios.get(apiUrl);
     console.log("Audio fetched from backend");
     return result.data;
   } catch (error) {
@@ -57,6 +49,20 @@ export const fetchAudio = async (audioUrl : string) => {
     throw error;
   }
 };
+
+export const sendEmailForPasscode = async (email : string, passcode: string) => {
+  try {
+    const response = await axios.post('http://localhost:8001/api/email/send-email',{
+      "email": email,
+      "subject": "Passcode Request",
+      "text": `Your passcode is ${passcode}`,
+    });
+
+    console.log("Email sent from sendEmailForPasscode", response.data);
+  } catch (error) {
+    console.error("Error sending email from sendEmailForPasscode", error);
+  }
+}
 
 
 

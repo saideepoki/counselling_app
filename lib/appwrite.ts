@@ -1,7 +1,10 @@
 import { Account, Avatars, Client, Databases, ID, Query, Storage} from 'react-native-appwrite';
 import 'react-native-url-polyfill/auto'
 import axios from 'axios';
-import Conversation from '@/app/(tabs)/conversation';
+import { sendEmailForPasscode } from './backend';
+import { router } from 'expo-router';
+import CryptoJS from 'crypto-js';
+import {globalConfig} from '@/utils/config';
 
 export const config = {
     endpoint: "https://cloud.appwrite.io/v1",
@@ -10,8 +13,10 @@ export const config = {
     databaseId: "6700b1d50015fcc184a5",
     userCollectionId: "6700b218002b6efda538",
     audioCollectionId: "6700b30400393be5301c",
-    conversationsCollectionId: "6700b32a000f8fc5d6b9",
-    storageId: "6700bae7001170a21ca1"
+    conversationsCollectionId: "67230f400014653d183c",
+    messagesCollectionId: "6700b32a000f8fc5d6b9",
+    meetingCollectionId: "6741709f00173c9f244a",
+    storageId: "6700bae7001170a21ca1",
 }
 
 // Init React Native SDK
@@ -29,7 +34,7 @@ const database = new Databases(client);
 const storage = new Storage(client);
 
 
-export const createUser = async (username : string, email : string, password : string) => {
+export const createUser = async (username : string, email : string, password : string, role: 'user' | 'admin' = 'user') => {
     try {
         const newAccount = await account.create(
             ID.unique(),
@@ -52,7 +57,8 @@ export const createUser = async (username : string, email : string, password : s
                 userId: newAccount.$id,
                 email: email,
                 username: username,
-                avatar: avatarUrl
+                avatar: avatarUrl,
+                role: role
             },
         )
 
@@ -63,10 +69,48 @@ export const createUser = async (username : string, email : string, password : s
     }
 }
 
-export const signIn = async (email : string, password : string) => {
+
+const generatePasscode = (email : string, offset?: number) => {
+    const secretKey = globalConfig.serverSecretKey;
+    const timestamp = Math.floor(Date.now() / (1000 * 60 * 5)) + (offset ?? 0);
+    const passcode = CryptoJS.HmacSHA256(email + timestamp, secretKey)
+    .toString(CryptoJS.enc.Hex)
+    .slice(0, 8)
+    .toUpperCase();
+    console.log(passcode);
+    return passcode;
+};
+
+
+export const registerOrganization = async (orgName : string, adminEmail : string, password: string) => {
     try {
-        const session = await account.createEmailPasswordSession(email, password);
-        return session;
+        const passcode = generatePasscode(adminEmail);
+        const newAccount = await account.create(
+            ID.unique(),
+            adminEmail,
+            password,
+            orgName
+        )
+        if(!newAccount) throw Error;
+
+        const avatarUrl = await avatars.getInitials(orgName);
+
+        const newOrg = database.createDocument(
+            config.databaseId,
+            config.userCollectionId,
+            ID.unique(),
+            {
+                userId: newAccount.$id,
+                email: adminEmail,
+                username: orgName,
+                avatar: avatarUrl,
+                role: 'admin',
+                isPasscodeValidated: false
+            }
+        )
+
+        await sendEmailForPasscode(adminEmail, passcode);
+        return newOrg;
     } catch (error : unknown) {
         throw new Error(String(error));
     }
@@ -112,6 +156,61 @@ export const getCurrentUserId = async () => {
     }
 }
 
+const validatePasscode = (email : string, providedPasscode?: string) => {
+    const currentPasscode = generatePasscode(email);
+    const previousPasscode = generatePasscode(email, -1);
+    if(!providedPasscode) return false;
+
+    if(providedPasscode !== currentPasscode && providedPasscode !== previousPasscode) {
+        throw new Error('Invalid passcode');
+    }
+
+
+    return true;
+}
+
+export const signIn = async (email : string, password : string, providedPasscode?:string) => {
+    try {
+        const session = await account.createEmailPasswordSession(email, password);
+
+        const userDoc = await database.listDocuments(
+            config.databaseId,
+            config.userCollectionId,
+            [Query.equal('email', email)]
+        );
+        
+        if(userDoc.total === 0) {
+            throw new Error("User not found");
+        }
+
+        const user = userDoc.documents[0];
+        if(user.role === 'admin' && !user.isPasscodeValidated) {
+            if(!providedPasscode) {
+                throw new Error("Passcode is required for first time admin sign-in");
+            }
+
+            const isPasscodeValid = validatePasscode(email, providedPasscode);
+            if(!isPasscodeValid) {
+                throw new Error("Invalid Passcode");
+            }
+
+            await database.updateDocument(
+                config.databaseId,
+                config.userCollectionId,
+                user.$id,
+                {
+                    isPasscodeValidated: true
+                }
+            )
+        }
+
+        return user;
+    } catch (error : unknown) {
+        throw new Error(String(error));
+    }
+}
+
+
 export const createConversation  = async () => {
     const userId = await getCurrentUserId();
     try {
@@ -129,6 +228,90 @@ export const createConversation  = async () => {
         return newConversation.$id;
     } catch (error) {
         console.error(String(error))
+    }
+}
+
+export const getConversations = async () => {
+    try {
+        const userId = await getCurrentUserId();
+        if(!userId) throw new Error;
+        const conversations = await database.listDocuments(
+            config.databaseId,
+            config.conversationsCollectionId,
+            [Query.equal('userId', userId), Query.orderDesc('$createdAt')]
+        )
+
+        return conversations.documents;
+    } catch (error) {
+        
+    }
+}
+
+
+export const getMessages = async (conversationDocumentId : string) => {
+    try {
+
+        console.log(conversationDocumentId);
+        const initialMessages = await database.listDocuments(
+            config.databaseId,
+            config.messagesCollectionId,
+            [
+                Query.equal("conversationIdString", [conversationDocumentId]),
+                Query.orderDesc('timestamp')
+            ]
+        )
+
+        if(!initialMessages) throw new Error;
+
+        console.log("fetched");
+
+        return initialMessages.documents;
+    } catch (error) {
+        console.error(String(error))
+    }
+}
+
+export const scheduleMeeting = async (email : string, date : string, time : string) => {
+
+    const user = await getCurrentUser();
+    if(!user) throw new Error;
+    if(user.role !== 'admin') throw new Error;
+    try {
+        const newMeeting = database.createDocument(
+            config.databaseId,
+            config.meetingCollectionId,
+            ID.unique(),
+            {
+                user_email : email,
+                date : date,
+                time : time,
+                status : "scheduled",
+                adminId: user.$id
+            }
+        )
+        return newMeeting;
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+export const getMeetings = async() => {
+    try {
+
+        const user = await getCurrentUser();
+        if(!user) throw new Error;
+        if(user.role !== 'admin') throw new Error;
+        const meetings = await database.listDocuments(
+            config.databaseId,
+            config.meetingCollectionId,
+            [
+                Query.equal('adminId', user.$id),
+            ]
+        )
+
+        return meetings.documents;
+    } catch (error) {
+        console.error(error);
     }
 }
 
@@ -196,6 +379,8 @@ export const processAudio = async (fileId: string) => {
         throw new Error(String(error));
      }
   }
+
+
 
 
 
