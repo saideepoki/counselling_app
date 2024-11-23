@@ -52,22 +52,6 @@ export default function TabLayout() {
         }
       }/>
        <Tabs.Screen
-      name = "history"
-      options = {
-        {
-          title: "History",
-          headerShown: false,
-          tabBarIcon: ({color, focused}) => (
-            <TabIcon
-            icon = {icons.rightArrow}
-            color = {color}
-            name = "History"
-            focused = {focused}
-            />
-          )
-        }
-      }/>
-       <Tabs.Screen
       name = "report"
       options = {
         {
