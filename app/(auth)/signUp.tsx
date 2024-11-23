@@ -24,10 +24,9 @@ const signUp = () => {
 
     setIsSubmitting(true);
     try {
-      const result = await createUser(form.username, form.email, form.password);
+      const result = await createUser(form.username, form.email, form.password, 'user');
       // set the result to global state using context
-
-      router.replace('/home');
+      router.replace('/conversation');
     } catch (error : unknown) {
       Alert.alert('Error', (error as Error).message)
     } finally {
@@ -45,7 +44,7 @@ const signUp = () => {
               resizeMode='contain'
               />
               <Text className='text-2xl text-white font-psemibold mt-10'>
-                Login to Znoforia AI
+                Login to Zoforia AI
               </Text>
 
               <FormField
@@ -82,14 +81,33 @@ const signUp = () => {
               isLoading={isSubmitting}
               />
 
-              <View className='justify-center pt-5 flex-row gap-2'>
-                <Text className = "text-lg text-gray-100 font-pregular">Have an account already?</Text>
-                <Link
-                href='/signIn'
-                className='text-lg font-psemibold text-cyan-500'>
-                  Sign In
-                </Link>
-              </View>
+        <View className="justify-center pt-5 flex-col items-center gap-4">
+          {/* Existing Link for Regular Users */}
+            <View className="flex-row gap-2">
+              <Text className="text-lg text-gray-100 font-pregular">
+                Have an account already?
+              </Text>
+              <Link
+                href="/signIn"
+                className="text-lg font-psemibold text-cyan-500"
+              >
+                Sign In
+              </Link>
+            </View>
+
+            {/* New Link for Admins */}
+            <View className="flex-row gap-2">
+              <Text className="text-lg text-gray-100 font-pregular">
+                Are you an admin?
+              </Text>
+              <Link
+                href="/AdminSignUp" // Admin registration route
+                className="text-md font-psemibold text-cyan-500"
+              >
+                Register Your Organization
+              </Link>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

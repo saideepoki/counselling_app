@@ -1,32 +1,39 @@
-import { View, Text, ScrollView, Image, Alert} from 'react-native'
-import React, { useState } from 'react'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { images } from '@/constants'
-import FormField from '@/components/FormField'
-import CustomButton from '@/components/CustomButton'
-import { Link, router } from 'expo-router'
-import { signIn as signInUser } from '@/lib/appwrite'
+import { View, Text, ScrollView, Image, Alert} from 'react-native';
+import React, { useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { images } from '@/constants';
+import FormField from '@/components/FormField';
+import CustomButton from '@/components/CustomButton';
+import { Link, router } from 'expo-router';
+import { signIn as signInUser } from '@/lib/appwrite';
 
 const signIn = () => {
 
   const [form, setForm] = useState({
     email: '',
-    password: ''
+    password: '',
+    passcode: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const submit = async () => {
     if(!form.email || !form.password) {
-      Alert.alert('Error', 'Please fill in all the fields')
+      Alert.alert('Error', 'Please fill in all the fields');
+      return;
     }
 
     setIsSubmitting(true);
     try {
-      const result = await signInUser(form.email, form.password);
+      const user = await signInUser(form.email, form.password, form.passcode || undefined);
+      if(user.role === 'admin') {
+        router.replace('/(admin)/dashboard');
+      }
+      else {
+        router.replace('/(tabs)/conversation');
+      }
       // set the result to global state using context
-
-      router.replace('/home');
     } catch (error : unknown) {
       Alert.alert('Error', (error as Error).message)
     } finally {
@@ -44,7 +51,7 @@ const signIn = () => {
               resizeMode='contain'
               />
               <Text className='text-2xl text-white font-psemibold mt-10'>
-                Login to Znoforia AI
+                Login to Zoforia AI
               </Text>
 
             <FormField
@@ -64,6 +71,19 @@ const signIn = () => {
                 password: e
               })}
               otherStyles = 'mt-7'
+              />
+
+              {/* Passcode Field */}
+              <FormField
+                title="Organization Passcode (Only for First time Admins)"
+                value={form.passcode}
+                handleChangeText={(e: string) =>
+                  setForm({
+                    ...form,
+                    passcode: e,
+                  })
+                }
+                otherStyles="mt-7"
               />
 
               <CustomButton
