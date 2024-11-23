@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { View, Button, Alert, FlatList, TouchableOpacity, Text, Pressable } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Button, Alert, FlatList, TouchableOpacity, Text, Pressable, Modal, Animated } from 'react-native';
 import { Audio } from 'expo-av';
 import MicrophoneButton from '../../components/MicrophoneButton';
 import { AndroidAudioEncoder, AndroidOutputFormat, IOSAudioQuality, IOSOutputFormat, Recording } from 'expo-av/build/Audio';
 import { createAudio, createConversation } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
 import { fetchAudio, sendAudioToBackend } from '@/lib/backend';
-import { ChevronLeft, ChevronRight, PlusCircle, Search, MessageSquare, AppWindow} from "lucide-react-native";
-
+import { PlusCircle, MessageSquare, AppWindow, X} from "lucide-react-native";
+import { getConversations, getMessages } from '@/lib/appwrite';
+import LoadingOverlay from '@/components/Loading';
 
 const configs = {
   isMeteringEnabled: true,
@@ -49,14 +50,34 @@ const Conversation: React.FC = () => {
   const [transcription, setTranscription] = useState<string | null>(null);
   const [llmResponse, setLlmResponse] = useState<string | null>(null);
   const [llmFileURL, setLlmFileURL] = useState<string | null>(null);
-  const [conversations, setConversations] = useState<any[]>([
-    { id: '1', title: 'Conversation 1', timestamp: '2m ago' },
-    { id: '2', title: 'Conversation 2', timestamp: '1h ago' },
-   ]
-  );
+  const [conversations, setConversations] = useState<any[]>([]);
   const [activeConversation, setActiveConversation] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [messages,setMessages] = useState<any[]>([]);
+  const[isBottomSheetVisible, setIsBottomSheetVisible] = useState<boolean>(false);
+  const [sidebarWidth] = useState(new Animated.Value(isSidebarOpen ? 288 : 0));
 
+useEffect(() => {
+  const fetchConversations = async () => {
+    try {
+      const initialConversations = await getConversations();
+      setConversations(initialConversations ?? []);
+    } catch (error) {
+      console.error("Failed to fetch convos", error);
+    }
+  }
+
+  fetchConversations();
+}, []);
+
+ // Handle sidebar animation
+ useEffect(() => {
+  Animated.timing(sidebarWidth, {
+    toValue: isSidebarOpen ? 288 : 0,
+    duration: 300,
+    useNativeDriver: false, 
+  }).start();
+}, [isSidebarOpen]);
 
 
   const submit = async (form : any) => {
@@ -69,7 +90,7 @@ const Conversation: React.FC = () => {
     try {
       const fileUrl = await createAudio(form);
       console.log(fileUrl);
-      const result: any = await sendAudioToBackend(String(fileUrl));
+      const result: any = await sendAudioToBackend(String(fileUrl), activeConversation.$id);
       console.log("Sent audio to backend");
       setLlmResponse(result.llm_response);
       setTranscription(result.transcription);
@@ -89,13 +110,12 @@ const Conversation: React.FC = () => {
       const conversationId = await createConversation();
       console.log(conversationId);
       const newConversation = {
-        id: conversationId,
-        title: `Conversation ${conversations.length + 1}`,
+        $id: conversationId
       }
       setConversations([newConversation, ...conversations]);
       setActiveConversation(newConversation);
     } catch(err) {
-
+        console.error(err);
     }
   }
 
@@ -107,12 +127,11 @@ const Conversation: React.FC = () => {
         await requestPermission();
       }
       await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
+        allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
+        shouldDuckAndroid: false,
         playThroughEarpieceAndroid: false,
         staysActiveInBackground: true
-
       });
 
       console.log('Starting recording..');
@@ -137,12 +156,12 @@ const Conversation: React.FC = () => {
     setAudioUri(String(uri));
 
     const fileName = `recording-${Date.now()}.m4a`;
-    // Move the recording to the new directory with the new file name
+
     const fileInfo : any = await FileSystem.getInfoAsync(String(uri));
     console.log(fileInfo);
     const fileData = {
       uri: uri,
-      name: fileName, // Extract the file name
+      name: fileName,
       type: 'audio/m4a',
       size: fileInfo?.size,
     };
@@ -161,25 +180,72 @@ const Conversation: React.FC = () => {
     if (!llmFileURL) return;
 
     console.log('Loading sound from URI:', llmFileURL);
-    const { sound } = await Audio.Sound.createAsync(
+
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: false,
+      staysActiveInBackground: true,
+      playThroughEarpieceAndroid: false,
+    });
+
+    const { sound: newSound, status } = await Audio.Sound.createAsync(
       { uri: llmFileURL },
       { shouldPlay: true,
         volume: 1.0,
         rate: 1.0,
-        shouldCorrectPitch: true,  // Add pitch correction
+        shouldCorrectPitch: true,  
         pitchCorrectionQuality: Audio.PitchCorrectionQuality.High,
+      },
+      (status) => {
+        console.log("Sound status update:",status)
       }
     );
-    setSound(sound);
+
+    if(!status.isLoaded) {
+      console.error("Sound failed to load");
+      return;
+    }
+    setSound(newSound);
 
     console.log('Playing sound');
-    await sound.playAsync(
-    );
+    const playbackStatus = await newSound.playAsync();
+    console.log('Playback status:', playbackStatus);
+     // Listen for playback completion
+     newSound.setOnPlaybackStatusUpdate((status) => {
+      if ("didJustFinish" in status && status.didJustFinish) {
+        console.log('Playback finished');
+        // Reset audio mode after playback if needed
+        Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+          staysActiveInBackground: true
+        });
+      }
+    });
   };
+
+
+  const handleConversationclick = async (conversation : any) => {
+    try {
+      setMessages([]);
+      setActiveConversation(conversation);
+      setIsBottomSheetVisible(true);
+      console.log(conversation.$id);
+      const fetchedMessages = await getMessages(conversation.$id);
+      setMessages(fetchedMessages ?? []);
+      console.log(fetchedMessages);
+    } catch(error) {
+      console.error(error);
+      setMessages([]);
+    }
+  }
 
   const ConversationItem = ({item, isActive} : {item : any, isActive : boolean}) => (
       <TouchableOpacity
-      onPress = {() => setActiveConversation(item)}
+      onPress = {() => handleConversationclick(item)}
       className={`p-4 mx-2 mb-2 rounded-lg transition-all ${
         isActive ? 'bg-cyan-600/80 hover:bg-cyan-600' : 'bg-zinc-800 hover:bg-zinc-700'
       }`}
@@ -187,11 +253,56 @@ const Conversation: React.FC = () => {
         <View className='flex-row items-center space-x-3'>
           <MessageSquare size={20} color={isActive ? 'white' : '#94a3b8'} />
           <View>
-            <Text className="text-white font-medium">{item.title}</Text>
-            <Text className="text-zinc-400 text-sm">{item.timestamp}</Text>
+            <Text className="text-white font-medium">{item.$id}</Text>
+            {/* <Text className="text-zinc-400 text-sm">{item.timestamp}</Text> */}
           </View>
         </View>
       </TouchableOpacity>
+  )
+
+
+  const BottomSheet = () => (
+    
+    <Modal
+    visible = {isBottomSheetVisible}
+    transparent = {true}
+    animationType='slide'
+    onRequestClose={() => setIsBottomSheetVisible(false)}
+  >
+    <View className="flex-1 justify-end bg-black/50">
+      <View className="bg-zinc-900 rounded-t-lg h-[70%]">
+        {/* Header */}
+        <View className="px-4 py-3 border-b border-zinc-800 flex-row justify-between items-center">
+          <Text className="text-white text-lg font-bold">
+            {activeConversation?.title || 'Previous Conversation'}
+          </Text>
+          <Pressable
+            onPress={() => setIsBottomSheetVisible(false)}
+            className="p-2 rounded-full bg-zinc-800 active:bg-zinc-700"
+          >
+            <X size={24} color="white" />
+          </Pressable>
+        </View>
+        {/* Message List */}
+        <View>
+        <FlatList
+          data={messages}
+          keyExtractor={(item) => item.messageId}
+          renderItem={({ item }) => (
+            <View className="px-4 py-3 border-b border-zinc-800">
+              <Text className="text-zinc-400 font-semibold">User:</Text>
+              <Text className="text-zinc-200 mb-2">{item.inputText}</Text>
+              <Text className="text-zinc-400 font-semibold">Response:</Text>
+              <Text className="text-zinc-200">{item.responseText}</Text>
+            </View>
+          )}
+          className="flex-grow"
+          contentContainerStyle={{ flexGrow: 1 }}
+        />
+        </View>
+      </View>
+    </View>
+  </Modal>
   )
 
   // Cleanup sound on component unmount
@@ -207,11 +318,20 @@ const Conversation: React.FC = () => {
   return (
     <View className="flex-1 flex-row bg-zinc-900">
       {/* SideBar */}
-      <View
-      className={`${
-        isSidebarOpen ? 'w-72' : 'w-0'
-      } border-r border-zinc-800 transition-all duration-300 overflow-hidden`}
+      <Animated.View
+      style={{
+        width: sidebarWidth,
+        borderRightWidth: 1,
+        borderColor: '#27272a', // Adjust to match 'border-zinc-800'
+        overflow: 'hidden',
+      }}
+      className="bg-zinc-900"
       >
+        <View
+        className={`${
+          isSidebarOpen ? 'w-72' : 'w-0'
+        } border-r border-zinc-800 transition-all duration-300 overflow-hidden`}
+        >
         <View className="p-4 border-b border-zinc-800">
           <Text className="text-xl font-semibold text-white mb-4">Conversations</Text>
           <Pressable
@@ -224,13 +344,20 @@ const Conversation: React.FC = () => {
         </View>
       <FlatList
       data = {conversations}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => item.$id}
       renderItem = {({item}) => (
-        <ConversationItem item={item} isActive={activeConversation?.id === item.id} />
+        <ConversationItem item={item} isActive={activeConversation?.$id === item.$id} />
       )}
       className='py-2'
       />
       </View>
+      </Animated.View>
+
+      {/* Bottom sheet */}
+      {messages.length > 0 && (
+        <BottomSheet />
+      )}
+      
 
       {/* Main Chat Area */}
       <View className = 'flex-1 relative'>
@@ -245,7 +372,7 @@ const Conversation: React.FC = () => {
 
             </Pressable>
             <Text className="text-lg font-semibold text-white">
-              {activeConversation?.title || 'New Conversation'}
+              {isSidebarOpen ? '' : (activeConversation?.title || 'New Conversation')}
             </Text>
           </View>
         </View>
@@ -253,7 +380,7 @@ const Conversation: React.FC = () => {
         {/* Chat History */}
         <View className = 'flex-1 items-center justify-center pt-16'>
         <MicrophoneButton 
-          isRecording={isRecording} 
+          isRecording={isRecording}
           onPress={isRecording ? stopRecording : startRecording} 
         />
         {audioUri && (
@@ -266,6 +393,7 @@ const Conversation: React.FC = () => {
         )}
         </View>
       </View>
+      <LoadingOverlay visible={uploading} />
     </View>
   );
 };
