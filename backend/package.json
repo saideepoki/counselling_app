@@ -1,0 +1,25 @@
+{
+  "name": "backend",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "app.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "backend": "file:",
+    "dotenv": "^16.4.5",
+    "emailjs": "^4.0.3",
+    "express": "^4.21.1",
+    "google-auth-library": "^9.15.0",
+    "nodemailer": "^6.9.16"
+  }
+}
