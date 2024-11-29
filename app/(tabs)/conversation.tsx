@@ -57,6 +57,7 @@ const Conversation: React.FC = () => {
   const[isBottomSheetVisible, setIsBottomSheetVisible] = useState<boolean>(false);
   const [sidebarWidth] = useState(new Animated.Value(isSidebarOpen ? 288 : 0));
 
+
 useEffect(() => {
   const fetchConversations = async () => {
     try {
@@ -75,7 +76,7 @@ useEffect(() => {
   Animated.timing(sidebarWidth, {
     toValue: isSidebarOpen ? 288 : 0,
     duration: 300,
-    useNativeDriver: false, 
+    useNativeDriver: false,
   }).start();
 }, [isSidebarOpen]);
 
@@ -248,15 +249,19 @@ useEffect(() => {
       onPress = {() => handleConversationclick(item)}
       className={`p-4 mx-2 mb-2 rounded-lg transition-all ${
         isActive ? 'bg-cyan-600/80 hover:bg-cyan-600' : 'bg-zinc-800 hover:bg-zinc-700'
-      }`}
+      }
+      flex-row items-center space-x-3
+      `}
       >
-        <View className='flex-row items-center space-x-3'>
-          <MessageSquare size={20} color={isActive ? 'white' : '#94a3b8'} />
-          <View>
-            <Text className="text-white font-medium">{item.$id}</Text>
-            {/* <Text className="text-zinc-400 text-sm">{item.timestamp}</Text> */}
-          </View>
-        </View>
+        <MessageSquare
+        size={20}
+        color={isActive ? 'white' : '#94a3b8'} 
+      />
+      <View>
+        <Text className="text-white font-medium">
+          Conversation {item.$id}
+        </Text>
+      </View>
       </TouchableOpacity>
   )
 
@@ -332,6 +337,8 @@ useEffect(() => {
           isSidebarOpen ? 'w-72' : 'w-0'
         } border-r border-zinc-800 transition-all duration-300 overflow-hidden`}
         >
+
+          {/* Conversations Section*/}
         <View className="p-4 border-b border-zinc-800">
           <Text className="text-xl font-semibold text-white mb-4">Conversations</Text>
           <Pressable
