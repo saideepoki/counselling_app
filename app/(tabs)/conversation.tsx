@@ -9,6 +9,7 @@ import { fetchAudio, sendAudioToBackend } from '@/lib/backend';
 import { PlusCircle, MessageSquare, AppWindow, X} from "lucide-react-native";
 import { getConversations, getMessages } from '@/lib/appwrite';
 import LoadingOverlay from '@/components/Loading';
+import { isWithinScheduledTime } from '@/helper/restrictMeeting';
 
 const configs = {
   isMeteringEnabled: true,
@@ -54,6 +55,7 @@ const Conversation: React.FC = () => {
   const [activeConversation, setActiveConversation] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [messages,setMessages] = useState<any[]>([]);
+  const [meetings, setMeetings] = useState<any[]>([]);
   const[isBottomSheetVisible, setIsBottomSheetVisible] = useState<boolean>(false);
   const [sidebarWidth] = useState(new Animated.Value(isSidebarOpen ? 288 : 0));
 
@@ -107,6 +109,12 @@ useEffect(() => {
   }
 
   const createNewConversation = async() => {
+
+    const isAllowed = isWithinScheduledTime(meetings);
+    if(!isAllowed) {
+      Alert.alert('Error', 'You can only create a new chat during your scheduled meeting time.');
+      return;
+    }
     try {
       const conversationId = await createConversation();
       console.log(conversationId);
@@ -343,7 +351,7 @@ useEffect(() => {
           <Text className="text-xl font-semibold text-white mb-4">Conversations</Text>
           <Pressable
             onPress={() => createNewConversation()}
-            className="flex-row items-center justify-center space-x-2 bg-gradient-to-r from-cyan-500 to-cyan-600 p-2 rounded-lg hover:from-cyan-600 hover:to-cyan-700 active:from-cyan-700 active:to-cyan-800"
+            className="flex-row items-center justify-center space-x-2 bg-cyan-600 rounded-xl p-3"
           >
             <PlusCircle size={20} color="white" />
             <Text className="text-white font-medium">New Chat</Text>
