@@ -333,6 +333,25 @@ export const fetchUserMeetings = async () => {
    }
 }
 
+export const updateUserProfile = async (username : string , avatar : string) => {
+    try {
+        const user = await getCurrentUser();
+        if(!user) throw new Error;
+        const updatedUser = await database.updateDocument(
+            config.databaseId,
+            config.userCollectionId,
+            user.$id,
+            {
+                username : username,
+                avatar : avatar
+            }
+        )
+        return updatedUser;
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 
 export const processAudio = async (fileId: string) => {
     try {
