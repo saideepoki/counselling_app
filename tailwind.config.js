@@ -1,4 +1,5 @@
 /** @type {import('tailwindcss').Config} */
+const colors = require("tailwindcss/colors");
 module.exports = {
   content: ["./app/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}"],
   theme: {
@@ -18,6 +19,14 @@ module.exports = {
         gray: {
           100: "#CDCDE0",
         },
+        cyan: {
+          500: "#06b6d4",
+          600: "#0891b2",
+        },
+      },
+      gradientColorStops: {
+        'cyan-from': '#06b6d4',
+        'cyan-to': '#0891b2',
       },
       fontFamily: {
         pthin: ["Poppins-Thin", "sans-serif"],
