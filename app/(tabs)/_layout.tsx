@@ -35,6 +35,25 @@ export default function TabLayout() {
       },
     }}
     >
+
+<Tabs.Screen
+      name = 'meetings'
+      options = {
+        {
+          title: "Meetings",
+          headerShown: false,
+          tabBarIcon: ({color, focused}) => (
+            <TabIcon
+            icon = {icons.calendar}
+            color = {color}
+            name = "Meetings"
+            focused = {focused}
+            />
+          )
+        }
+      }
+      />
+
        <Tabs.Screen
       name = "conversation"
       options = {
@@ -67,24 +86,6 @@ export default function TabLayout() {
           )
         }
       }/>
-
-      <Tabs.Screen
-      name = 'meetings'
-      options = {
-        {
-          title: "Meetings",
-          headerShown: false,
-          tabBarIcon: ({color, focused}) => (
-            <TabIcon
-            icon = {icons.calendar}
-            color = {color}
-            name = "Meetings"
-            focused = {focused}
-            />
-          )
-        }
-      }
-      />
     </Tabs>
    </>
   );
