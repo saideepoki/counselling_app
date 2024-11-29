@@ -315,6 +315,24 @@ export const getMeetings = async() => {
     }
 }
 
+export const fetchUserMeetings = async () => {
+   try {
+     const currentUser = await getCurrentUser();
+     if(!currentUser) throw new Error;
+     const meetings = await database.listDocuments(
+         config.databaseId,
+         config.meetingCollectionId,
+         [
+             Query.equal('user_email', currentUser.email),
+         ]
+     )
+     console.log(meetings.documents);
+     return meetings.documents;
+   } catch (error) {
+     console.error('Failed to fetch meetings', error);
+   }
+}
+
 
 export const processAudio = async (fileId: string) => {
     try {
