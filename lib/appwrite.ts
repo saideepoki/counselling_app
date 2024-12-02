@@ -2,7 +2,6 @@ import { Account, Avatars, Client, Databases, ID, Query, Storage} from 'react-na
 import 'react-native-url-polyfill/auto'
 import axios from 'axios';
 import { sendEmailForPasscode } from './backend';
-import { router } from 'expo-router';
 import CryptoJS from 'crypto-js';
 import {globalConfig} from '@/utils/config';
 
@@ -210,8 +209,17 @@ export const signIn = async (email : string, password : string, providedPasscode
     }
 }
 
+export const signOut = async() => {
+    try {
+        const session  = await account.deleteSession('current');
+        return session;
+    } catch (error) {
+        console.error('Cannot sign out',error);
+    }
+}
 
-export const createConversation  = async () => {
+
+export const createConversation  = async (title: string) => {
     const userId = await getCurrentUserId();
     try {
         const newConversation = await database.createDocument(
@@ -220,7 +228,8 @@ export const createConversation  = async () => {
             ID.unique(),
             {
                 userId: userId,
-                conversationId: ID.unique()
+                conversationId: ID.unique(),
+                title: title
             }
         )
 
@@ -228,6 +237,21 @@ export const createConversation  = async () => {
         return newConversation.$id;
     } catch (error) {
         console.error(String(error))
+    }
+}
+
+export const deleteConversation = async(conversationId : string) => {
+    try {
+        const response = await database.deleteDocument(
+            config.databaseId,
+            config.conversationsCollectionId,
+            conversationId
+        );
+
+        return response;
+    } catch (error) {
+        console.error("Failed to delete conversation", error);
+        throw new Error(String(error));
     }
 }
 
@@ -295,6 +319,8 @@ export const scheduleMeeting = async (email : string, date : string, time : stri
     }
 }
 
+export const removeMeeting = async() => {}
+
 export const getMeetings = async() => {
     try {
 
@@ -308,6 +334,8 @@ export const getMeetings = async() => {
                 Query.equal('adminId', user.$id),
             ]
         )
+
+        console.log(meetings);
 
         return meetings.documents;
     } catch (error) {

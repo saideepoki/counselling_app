@@ -5,7 +5,8 @@ import { getCurrentUserId } from './appwrite';
 
 export const sendAudioToBackend = async (fileUrl : string, conversationDocumentId : string) => {
   const userId = await getCurrentUserId();
-  const apiUrl = `http://10.79.113.27:8000/process_audio/?url=${fileUrl}&user_id=${userId}&convo_document_id=${conversationDocumentId}`;
+  console.log(userId);
+  const apiUrl = `http://10.79.112.120:8000/process_audio/?url=${fileUrl}&user_id=${userId}&convo_document_id=${conversationDocumentId}`;
 
   try {
     const result = await axios.get(apiUrl);
