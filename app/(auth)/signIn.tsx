@@ -28,7 +28,7 @@ const signIn = () => {
     try {
       const user = await signInUser(form.email, form.password, form.passcode || undefined);
       if(user.role === 'admin') {
-        router.replace('/(admin)/dashboard');
+        router.replace('/(admin)/scheduleMeetings');
       }
       else {
         router.replace('/(tabs)/conversation');

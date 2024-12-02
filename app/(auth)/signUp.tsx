@@ -101,7 +101,7 @@ const signUp = () => {
                 Are you an admin?
               </Text>
               <Link
-                href="/AdminSignUp" // Admin registration route
+                href="/(auth)AdminSignUp" // Admin registration route
                 className="text-md font-psemibold text-cyan-500"
               >
                 Register Your Organization
