@@ -3,13 +3,14 @@ import { View, Button, Alert, FlatList, TouchableOpacity, Text, Pressable, Modal
 import { Audio } from 'expo-av';
 import MicrophoneButton from '../../components/MicrophoneButton';
 import { AndroidAudioEncoder, AndroidOutputFormat, IOSAudioQuality, IOSOutputFormat, Recording } from 'expo-av/build/Audio';
-import { createAudio, createConversation } from '@/lib/appwrite';
+import { createAudio, createConversation, deleteConversation } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
 import { fetchAudio, sendAudioToBackend } from '@/lib/backend';
-import { PlusCircle, MessageSquare, AppWindow, X} from "lucide-react-native";
+import { PlusCircle, MessageSquare, AppWindow, X, Trash2} from "lucide-react-native";
 import { getConversations, getMessages } from '@/lib/appwrite';
 import LoadingOverlay from '@/components/Loading';
 import { isWithinScheduledTime } from '@/helper/restrictMeeting';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 const configs = {
   isMeteringEnabled: true,
@@ -58,6 +59,9 @@ const Conversation: React.FC = () => {
   const [meetings, setMeetings] = useState<any[]>([]);
   const[isBottomSheetVisible, setIsBottomSheetVisible] = useState<boolean>(false);
   const [sidebarWidth] = useState(new Animated.Value(isSidebarOpen ? 288 : 0));
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const {conversationId, conversationTitle} = params;
 
 
 useEffect(() => {
@@ -72,6 +76,17 @@ useEffect(() => {
 
   fetchConversations();
 }, []);
+
+useEffect(() => {
+  if(conversationId && conversationTitle) {
+    const newConversation = {
+      $id: conversationId,
+      title: conversationTitle
+    }
+    setConversations([...conversations, newConversation]);
+    setActiveConversation(newConversation);
+  }
+}, [conversationId, conversationTitle]);
 
  // Handle sidebar animation
  useEffect(() => {
@@ -108,23 +123,49 @@ useEffect(() => {
     }
   }
 
-  const createNewConversation = async() => {
+  // const createNewConversation = async() => {
 
-    const isAllowed = isWithinScheduledTime(meetings);
-    if(!isAllowed) {
-      Alert.alert('Error', 'You can only create a new chat during your scheduled meeting time.');
-      return;
-    }
+  //   const isAllowed = isWithinScheduledTime(meetings);
+  //   if(!isAllowed) {
+  //     Alert.alert('Error', 'You can only create a new chat during your scheduled meeting time.');
+  //     return;
+  //   }
+  //   try {
+  //     const conversationId = await createConversation(String(conversationTitle));
+  //     console.log(conversationId);
+  //     const newConversation = {
+  //       $id: conversationId
+  //     }
+  //     setConversations([newConversation, ...conversations]);
+  //     setActiveConversation(newConversation);
+  //   } catch(err) {
+  //       console.error(err);
+  //   }
+  // }
+
+  const handleDeleteConversation = async(conversationId : string) => {
     try {
-      const conversationId = await createConversation();
-      console.log(conversationId);
-      const newConversation = {
-        $id: conversationId
-      }
-      setConversations([newConversation, ...conversations]);
-      setActiveConversation(newConversation);
-    } catch(err) {
-        console.error(err);
+      Alert.alert(
+        'Confirm Deletion',
+        'Are you sure you want to delete this conversation?',
+        [
+          {text : 'Cancel', style : 'cancel'},
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteConversation(conversationId);
+              Alert.alert('Success', 'Conversation deleted Successfully.');
+              const updatedConversations = conversations.filter(
+                (conversation) => conversation.$id !== conversationId
+              );
+              setConversations(updatedConversations);
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete conversation. Please try again.');
     }
   }
 
@@ -203,7 +244,7 @@ useEffect(() => {
       { shouldPlay: true,
         volume: 1.0,
         rate: 1.0,
-        shouldCorrectPitch: true,  
+        shouldCorrectPitch: true,
         pitchCorrectionQuality: Audio.PitchCorrectionQuality.High,
       },
       (status) => {
@@ -261,16 +302,14 @@ useEffect(() => {
       flex-row items-center space-x-3
       `}
       >
-        <MessageSquare
-        size={20}
-        color={isActive ? 'white' : '#94a3b8'} 
-      />
-      <View>
-        <Text className="text-white font-medium">
-          Conversation {item.$id}
-        </Text>
-      </View>
+        <View className="flex-row items-center">
+          <MessageSquare size={20} color={isActive ? 'white' : '#94a3b8'} />
+          <Text className="text-white font-medium ml-3">{item.title}</Text>
+        </View>
+      <TouchableOpacity onPress={() => handleDeleteConversation(item.$id)}>
+        <Trash2 size={20} color="#EF4444" />
       </TouchableOpacity>
+    </TouchableOpacity>
   )
 
 
@@ -348,23 +387,30 @@ useEffect(() => {
 
           {/* Conversations Section*/}
         <View className="p-4 border-b border-zinc-800">
-          <Text className="text-xl font-semibold text-white mb-4">Conversations</Text>
-          <Pressable
+          <Text className="text-xl font-semibold text-white mt-3">Conversations</Text>
+          {/* <Pressable
             onPress={() => createNewConversation()}
             className="flex-row items-center justify-center space-x-2 bg-cyan-600 rounded-xl p-3"
           >
             <PlusCircle size={20} color="white" />
             <Text className="text-white font-medium">New Chat</Text>
-          </Pressable>
+          </Pressable> */}
         </View>
-      <FlatList
-      data = {conversations}
-      keyExtractor={(item) => item.$id}
-      renderItem = {({item}) => (
-        <ConversationItem item={item} isActive={activeConversation?.$id === item.$id} />
-      )}
-      className='py-2'
-      />
+        {conversations.length > 0 ? (
+          <FlatList
+          data = {conversations}
+          keyExtractor={(item) => item.$id}
+          renderItem = {({item}) => (
+            <ConversationItem item={item} isActive={activeConversation?.$id === item.$id} />
+          )}
+          className='py-2'
+          />
+        ) : (
+          <View
+            className = 'items-center mt-40'>
+            <Text className="text-zinc-500 text-lg mt-14">No conversations</Text>
+          </View>
+        )}
       </View>
       </Animated.View>
 

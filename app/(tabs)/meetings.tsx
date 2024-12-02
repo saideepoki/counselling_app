@@ -1,14 +1,17 @@
-import { View, Text, TouchableOpacity, FlatList, SafeAreaView } from 'react-native'
+import { View, Text, TouchableOpacity, FlatList, SafeAreaView, Alert } from 'react-native'
 import {
     Calendar,
     Clock,
     CheckCircle2,
     XCircle,
     MoreVertical,
-    Filter
+    Filter,
+    MessageSquare
   } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react'
-import { fetchUserMeetings } from '@/lib/appwrite';
+import { createConversation, fetchUserMeetings } from '@/lib/appwrite';
+import { router } from 'expo-router';
+import { isWithinScheduledTime, isWithinScheduledTimeSingle } from '@/helper/restrictMeeting';
 
 
 const formatDate = (dateString : string) => {
@@ -67,6 +70,23 @@ const meetings = () => {
     ? meetings
     : meetings.filter(meeting => meeting.status.toLowerCase() === filterStatus);
 
+    const openChat = async(meeting: any) => {
+      try {
+        if(!isWithinScheduledTimeSingle(meeting)) {
+          Alert.alert('Error', 'You can only create a chat during your scheduled meeting time.');
+          return;
+        }
+        const conversationTitle = `${formatDate(meeting.date)} at ${meeting.time}`;
+        const conversationId = await createConversation(conversationTitle);
+        router.push({
+          pathname: '/(tabs)/conversation',
+          params: {conversationId, conversationTitle}
+        })
+      } catch (error) {
+        Alert.alert('Error', 'Unable to open chat. Please try again');
+      }
+    }
+
     const MeetingItem = ({item} : {item : any}) => {
         const statusStyle = getStatusStyle(item.status);
         return (
@@ -87,8 +107,13 @@ const meetings = () => {
                         </View>
                     </View>
                 </View>
-                <TouchableOpacity className = 'p-2'>
-                    <MoreVertical size={20} color = '#94A3B8'/>
+                <TouchableOpacity
+                  className = 'p-2'
+                  onPress = {() => openChat(item)}
+                  disabled={item.status.toLowerCase() !== 'scheduled'}
+                >
+                    <MessageSquare size = {20} color = '#94A3B8'/>
+                    <Text className = 'text-blue-500 text-xs'>Open Chat</Text>
                 </TouchableOpacity>
             </TouchableOpacity>
         );
