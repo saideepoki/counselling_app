@@ -11,7 +11,7 @@ export default function HomeScreen() {
 
   const {isLoading, isLoggedIn, user} = useGlobalContext();
 
-  if(!isLoading && isLoggedIn && user.role === 'admin') return <Redirect href = "/(admin)/dashboard"/>
+  if(!isLoading && isLoggedIn && user.role === 'admin') return <Redirect href = "/(admin)/scheduleMeetings"/>
   if(!isLoading && isLoggedIn && user.role === 'user') return <Redirect href = "/(tabs)/conversation"/>
   return (
     <SafeAreaView className="bg-zinc-900 flex-1">
