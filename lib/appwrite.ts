@@ -131,7 +131,8 @@ export const getCurrentUser = async () => {
 
         return currentUser.documents[0]
     } catch (error) {
-        console.error(error)
+        console.error(error);
+        return null;
     }
 }
 
@@ -177,7 +178,7 @@ export const signIn = async (email : string, password : string, providedPasscode
             config.userCollectionId,
             [Query.equal('email', email)]
         );
-        
+
         if(userDoc.total === 0) {
             throw new Error("User not found");
         }
@@ -219,7 +220,7 @@ export const signOut = async() => {
 }
 
 
-export const createConversation  = async (title: string) => {
+export const createConversation  = async (title: string, meetingId: string) => {
     const userId = await getCurrentUserId();
     try {
         const newConversation = await database.createDocument(
@@ -229,7 +230,8 @@ export const createConversation  = async (title: string) => {
             {
                 userId: userId,
                 conversationId: ID.unique(),
-                title: title
+                title: title,
+                meetingId: meetingId
             }
         )
 
