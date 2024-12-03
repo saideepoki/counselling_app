@@ -31,7 +31,7 @@ const signIn = () => {
         router.replace('/(admin)/scheduleMeetings');
       }
       else {
-        router.replace('/(tabs)/conversation');
+        router.replace('/(tabs)/meetings');
       }
       // set the result to global state using context
     } catch (error : unknown) {
