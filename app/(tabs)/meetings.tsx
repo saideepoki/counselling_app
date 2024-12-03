@@ -9,7 +9,7 @@ import {
     MessageSquare
   } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react'
-import { createConversation, fetchUserMeetings } from '@/lib/appwrite';
+import { createConversation, fetchUserMeetings, getConversations } from '@/lib/appwrite';
 import { router } from 'expo-router';
 import { isWithinScheduledTime, isWithinScheduledTimeSingle } from '@/helper/restrictMeeting';
 
@@ -72,16 +72,41 @@ const meetings = () => {
 
     const openChat = async(meeting: any) => {
       try {
+
+        const existingConversations = await getConversations();
+        const existingConversation = existingConversations?.find(
+          (conv : any) => conv.meetingId === meeting.$id
+        );
+
+        if(existingConversation) {
+          router.push({
+            pathname: '/(tabs)/conversation',
+            params: {
+              conversationId: existingConversation.$id,
+              conversationTitle: existingConversation.title,
+              currentMeetingId: meeting.$id,
+              activeMeeting: JSON.stringify(meeting)
+            }
+          });
+          return;
+        }
+
         if(!isWithinScheduledTimeSingle(meeting)) {
           Alert.alert('Error', 'You can only create a chat during your scheduled meeting time.');
           return;
         }
         const conversationTitle = `${formatDate(meeting.date)} at ${meeting.time}`;
-        const conversationId = await createConversation(conversationTitle);
+        const newConversationId = await createConversation(conversationTitle, meeting.$id);
+
         router.push({
           pathname: '/(tabs)/conversation',
-          params: {conversationId, conversationTitle}
-        })
+          params: {
+          conversationId: newConversationId,
+          conversationTitle,
+          currentMeetingId: meeting.$id,
+          activeMeeting: JSON.stringify(meeting)
+        }
+        });
       } catch (error) {
         Alert.alert('Error', 'Unable to open chat. Please try again');
       }

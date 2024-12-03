@@ -9,7 +9,7 @@ import { fetchAudio, sendAudioToBackend } from '@/lib/backend';
 import { PlusCircle, MessageSquare, AppWindow, X, Trash2} from "lucide-react-native";
 import { getConversations, getMessages } from '@/lib/appwrite';
 import LoadingOverlay from '@/components/Loading';
-import { isWithinScheduledTime } from '@/helper/restrictMeeting';
+import { isWithinScheduledTime, isWithinScheduledTimeSingle } from '@/helper/restrictMeeting';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 const configs = {
@@ -56,13 +56,13 @@ const Conversation: React.FC = () => {
   const [activeConversation, setActiveConversation] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [messages,setMessages] = useState<any[]>([]);
-  const [meetings, setMeetings] = useState<any[]>([]);
   const[isBottomSheetVisible, setIsBottomSheetVisible] = useState<boolean>(false);
   const [sidebarWidth] = useState(new Animated.Value(isSidebarOpen ? 288 : 0));
   const router = useRouter();
   const params = useLocalSearchParams();
-  const {conversationId, conversationTitle} = params;
-
+  const {conversationId, conversationTitle, currentMeetingId, activeMeeting} = params;
+  const parsedMeeting = activeMeeting ? JSON.parse(activeMeeting as string) : null;
+  console.log(currentMeetingId, conversationId, conversationTitle);
 
 useEffect(() => {
   const fetchConversations = async () => {
@@ -78,15 +78,24 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  if(conversationId && conversationTitle) {
+  if (conversationId && conversationTitle) {
     const newConversation = {
       $id: conversationId,
-      title: conversationTitle
-    }
-    setConversations([...conversations, newConversation]);
+      title: conversationTitle,
+    };
+
+    setConversations((prevConversations) => {
+      const exists = prevConversations.some(
+        (conv : any) => conv.$id === conversationId
+      );
+      if (exists) return prevConversations;
+      return [newConversation, ...prevConversations];
+    });
+
     setActiveConversation(newConversation);
   }
 }, [conversationId, conversationTitle]);
+
 
  // Handle sidebar animation
  useEffect(() => {
@@ -367,6 +376,15 @@ useEffect(() => {
       : undefined;
   }, [sound]);
 
+  let isMicrophoneAllowed = false;
+  if(currentMeetingId) {
+    const isTimeValid = isWithinScheduledTimeSingle(parsedMeeting);
+    console.log(isTimeValid);
+    const isConversationValid = conversationId === activeConversation?.$id;
+    console.log(conversationId, activeConversation?.$id);
+    isMicrophoneAllowed = isTimeValid && isConversationValid;
+  }
+
   return (
     <View className="flex-1 flex-row bg-zinc-900">
       {/* SideBar */}
@@ -374,7 +392,7 @@ useEffect(() => {
       style={{
         width: sidebarWidth,
         borderRightWidth: 1,
-        borderColor: '#27272a', // Adjust to match 'border-zinc-800'
+        borderColor: '#27272a',
         overflow: 'hidden',
       }}
       className="bg-zinc-900"
@@ -433,17 +451,18 @@ useEffect(() => {
 
             </Pressable>
             <Text className="text-lg font-semibold text-white">
-              {isSidebarOpen ? '' : (activeConversation?.title || 'New Conversation')}
+              {isSidebarOpen ? '' : (` Conversation ${activeConversation?.title}` || 'New Conversation')}
             </Text>
           </View>
         </View>
 
-        {/* Chat History */}
         <View className = 'flex-1 items-center justify-center pt-16'>
-        <MicrophoneButton 
+        {isMicrophoneAllowed ? (
+          <MicrophoneButton
           isRecording={isRecording}
-          onPress={isRecording ? stopRecording : startRecording} 
+          onPress={isRecording ? stopRecording : startRecording}
         />
+        ) : ('')}
         {audioUri && (
           <Pressable
             onPress = {playSound}
