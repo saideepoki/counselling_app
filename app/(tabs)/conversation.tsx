@@ -3,7 +3,7 @@ import { View, Button, Alert, FlatList, TouchableOpacity, Text, Pressable, Modal
 import { Audio } from 'expo-av';
 import MicrophoneButton from '../../components/MicrophoneButton';
 import { AndroidAudioEncoder, AndroidOutputFormat, IOSAudioQuality, IOSOutputFormat, Recording } from 'expo-av/build/Audio';
-import { createAudio, createConversation, deleteConversation } from '@/lib/appwrite';
+import { createAudio, createConversation, deleteConversation, getMeeting } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
 import { fetchAudio, sendAudioToBackend } from '@/lib/backend';
 import { PlusCircle, MessageSquare, AppWindow, X, Trash2} from "lucide-react-native";
@@ -56,13 +56,13 @@ const Conversation: React.FC = () => {
   const [activeConversation, setActiveConversation] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [messages,setMessages] = useState<any[]>([]);
+  const[isMicrophoneAllowed, setIsMicrophoneAllowed] = useState<boolean>(false);
   const[isBottomSheetVisible, setIsBottomSheetVisible] = useState<boolean>(false);
   const [sidebarWidth] = useState(new Animated.Value(isSidebarOpen ? 288 : 0));
   const router = useRouter();
   const params = useLocalSearchParams();
   const {conversationId, conversationTitle, currentMeetingId, activeMeeting} = params;
   const parsedMeeting = activeMeeting ? JSON.parse(activeMeeting as string) : null;
-  console.log(currentMeetingId, conversationId, conversationTitle);
 
 useEffect(() => {
   const fetchConversations = async () => {
@@ -82,6 +82,7 @@ useEffect(() => {
     const newConversation = {
       $id: conversationId,
       title: conversationTitle,
+      meetingId: currentMeetingId
     };
 
     setConversations((prevConversations) => {
@@ -105,6 +106,24 @@ useEffect(() => {
     useNativeDriver: false,
   }).start();
 }, [isSidebarOpen]);
+
+useEffect(() => {
+  const checkMicrophoneAllowed = async() => {
+    if(activeConversation?.meetingId) {
+      const meeting = await getMeeting(activeConversation?.meetingId);
+      if(meeting) {
+        const isTimeValid = isWithinScheduledTimeSingle(meeting);
+        setIsMicrophoneAllowed(isTimeValid);
+      } else {
+        setIsMicrophoneAllowed(false);
+      }
+    } else {
+      setIsMicrophoneAllowed(false);
+    }
+  };
+
+  checkMicrophoneAllowed();
+}, [activeConversation]);
 
 
   const submit = async (form : any) => {
@@ -169,6 +188,9 @@ useEffect(() => {
                 (conversation) => conversation.$id !== conversationId
               );
               setConversations(updatedConversations);
+              if(activeConversation && activeConversation.$id === conversationId) {
+                setActiveConversation(null);
+              }
             }
           }
         ]
@@ -296,6 +318,17 @@ useEffect(() => {
       const fetchedMessages = await getMessages(conversation.$id);
       setMessages(fetchedMessages ?? []);
       console.log(fetchedMessages);
+      if(conversation?.meetingId) {
+        const meeting = await getMeeting(conversation.meetingId);
+        if(meeting) {
+          const isTimeValid = isWithinScheduledTimeSingle(meeting);
+          setIsMicrophoneAllowed(isTimeValid);
+        } else {
+          setIsMicrophoneAllowed(false);
+        }
+      } else {
+        setIsMicrophoneAllowed(false);
+      }
     } catch(error) {
       console.error(error);
       setMessages([]);
@@ -376,14 +409,14 @@ useEffect(() => {
       : undefined;
   }, [sound]);
 
-  let isMicrophoneAllowed = false;
-  if(currentMeetingId) {
-    const isTimeValid = isWithinScheduledTimeSingle(parsedMeeting);
-    console.log(isTimeValid);
-    const isConversationValid = conversationId === activeConversation?.$id;
-    console.log(conversationId, activeConversation?.$id);
-    isMicrophoneAllowed = isTimeValid && isConversationValid;
-  }
+  // let isMicrophoneAllowed = false;
+  // if(currentMeetingId) {
+  //   const isTimeValid = isWithinScheduledTimeSingle(parsedMeeting);
+  //   console.log(isTimeValid);
+  //   const isConversationValid = conversationId === activeConversation?.$id;
+  //   console.log(conversationId, activeConversation?.$id);
+  //   isMicrophoneAllowed = isTimeValid && isConversationValid;
+  // }
 
   return (
     <View className="flex-1 flex-row bg-zinc-900">
@@ -451,7 +484,7 @@ useEffect(() => {
 
             </Pressable>
             <Text className="text-lg font-semibold text-white">
-              {isSidebarOpen ? '' : (` Conversation ${activeConversation?.title}` || 'New Conversation')}
+              {isSidebarOpen ? '' : (activeConversation?.title ? `Conversation ${activeConversation?.title}` : 'No Conversation')}
             </Text>
           </View>
         </View>
